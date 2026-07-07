@@ -1,0 +1,124 @@
+import 'dart:ui';
+
+import 'package:flutter_photo_collage_app/models/collage_layout.dart';
+import 'package:flutter_photo_collage_app/models/export_settings.dart';
+import 'package:flutter_photo_collage_app/models/photo_metadata.dart';
+import 'package:flutter_photo_collage_app/models/project_document.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('PhotoMetadata', () {
+    test('builds display parts and prefixes ISO once', () {
+      const metadata = PhotoMetadata(
+        camera: 'FUJIFILM X-T5',
+        lens: 'XF 35mm F1.4',
+        focalLength: '35 mm',
+        aperture: 'f/2',
+        shutterSpeed: '1/250',
+        iso: '400',
+      );
+
+      expect(metadata.displayParts, [
+        'FUJIFILM X-T5',
+        'XF 35mm F1.4',
+        '35 mm',
+        'f/2',
+        '1/250',
+        'ISO 400',
+      ]);
+    });
+  });
+
+  group('CollageLayout', () {
+    test('creates stable grid rects with gutters', () {
+      final rects = const CollageLayout().build(
+        itemCount: 4,
+        columns: 2,
+        canvasSize: const Size(1000, 1000),
+        gutter: 20,
+      );
+
+      expect(rects, hasLength(4));
+      expect(rects.first, const Rect.fromLTWH(20, 20, 470, 470));
+      expect(rects.last, const Rect.fromLTWH(510, 510, 470, 470));
+    });
+
+    test('limits columns to item count', () {
+      final rects = const CollageLayout().build(
+        itemCount: 2,
+        columns: 6,
+        canvasSize: const Size(800, 400),
+        gutter: 10,
+      );
+
+      expect(rects, hasLength(2));
+      expect(rects.first.width, 385);
+      expect(rects.first.height, 380);
+    });
+  });
+
+  group('ExportSettings and SizeLimiter', () {
+    test('round-trips json', () {
+      const settings = ExportSettings(
+        width: 1920,
+        height: 1080,
+        targetBytes: 900000,
+        jpegQuality: 88,
+      );
+
+      expect(ExportSettings.fromJson(settings.toJson()).toJson(), settings.toJson());
+    });
+
+    test('retries only when target bytes are exceeded', () {
+      const limiter = SizeLimiter();
+
+      expect(
+        limiter.shouldRetry(
+          currentBytes: 1200,
+          targetBytes: 1000,
+          currentQuality: 90,
+        ),
+        isTrue,
+      );
+      expect(
+        limiter.shouldRetry(
+          currentBytes: 900,
+          targetBytes: 1000,
+          currentQuality: 90,
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('ProjectDocument', () {
+    test('round-trips project json', () {
+      final now = DateTime.utc(2026, 7, 7, 1, 2, 3);
+      final document = ProjectDocument(
+        id: 'project-1',
+        name: 'sample',
+        kind: ProjectKind.frame,
+        createdAt: now,
+        updatedAt: now,
+        assets: const [
+          ProjectAsset(
+            id: 'asset-1',
+            fileName: 'photo.jpg',
+            relativePath: 'assets/asset-1.jpg',
+          ),
+        ],
+        exportSettings: const ExportSettings(width: 3000, height: 2000),
+        metadata: const PhotoMetadata(camera: 'Camera'),
+        frameSettings: const FrameSettings(),
+      );
+
+      final restored = ProjectDocument.fromJson(document.toJson());
+
+      expect(restored.id, document.id);
+      expect(restored.kind, ProjectKind.frame);
+      expect(restored.assets.single.relativePath, 'assets/asset-1.jpg');
+      expect(restored.metadata.camera, 'Camera');
+      expect(restored.exportSettings.width, 3000);
+    });
+  });
+}
