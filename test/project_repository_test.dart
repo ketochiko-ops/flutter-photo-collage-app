@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  // プロジェクトJSONの保存、画像コピー、保存済みプロジェクトの再読み込みをまとめて確認します。
   test('saves project json and copies source images into assets folder', () async {
     final temp = await Directory.systemTemp.createTemp('photo_collage_test_');
     addTearDown(() async {

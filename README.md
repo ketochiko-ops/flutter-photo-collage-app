@@ -28,6 +28,20 @@ flutter run -d ios
 flutter run -d android
 ```
 
+## テスト一覧
+
+`flutter test` で下記のテストを実行します。
+
+- `test/models_test.dart`
+  - `PhotoMetadata`: 撮影情報の表示順と、ISO表記が一度だけ付与されることを確認します。
+  - `CollageLayout`: グリッド配置の矩形がガター込みで安定して計算されることを確認します。
+  - `CollageLayout`: 指定列数が画像枚数を超える場合、画像枚数に合わせて列数が制限されることを確認します。
+  - `ExportSettings`: 書き出し設定をJSONへ変換し、復元しても内容が維持されることを確認します。
+  - `SizeLimiter`: 目標バイト数を超過した場合だけJPEG品質の再試行が必要になることを確認します。
+  - `ProjectDocument`: プロジェクト情報、使用画像、撮影情報、書き出し設定をJSONから復元できることを確認します。
+- `test/project_repository_test.dart`
+  - `ProjectRepository`: `project.json` の保存、元画像の `assets` フォルダへのコピー、保存済みプロジェクトの再読み込みを確認します。
+
 ## 主な画面
 
 - `Frame`: 1枚の画像に余白フレームと撮影情報を合成し、JPEGで書き出します。
@@ -50,7 +64,7 @@ macOSではGoogle Mobile Adsが公式サポート外のため、App Store配布�
 - 合成処理: `lib/services/local_image_composer.dart`
 - EXIF読み取り: `lib/services/metadata_extractor.dart`
 - プロジェクト保存: `lib/services/project_repository.dart`
-- テスト: `test/models_test.dart`
+- テスト: `test/models_test.dart`, `test/project_repository_test.dart`
 
 ## 既知の注意点
 

@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('PhotoMetadata', () {
+    // 撮影情報の表示順と、ISO表記が重複しないことを確認します。
     test('builds display parts and prefixes ISO once', () {
       const metadata = PhotoMetadata(
         camera: 'FUJIFILM X-T5',
@@ -30,6 +31,7 @@ void main() {
   });
 
   group('CollageLayout', () {
+    // ガターを含めたグリッドの各矩形が、期待どおりの位置とサイズになることを確認します。
     test('creates stable grid rects with gutters', () {
       final rects = const CollageLayout().build(
         itemCount: 4,
@@ -43,6 +45,7 @@ void main() {
       expect(rects.last, const Rect.fromLTWH(510, 510, 470, 470));
     });
 
+    // 指定列数が画像枚数より多い場合、画像枚数に合わせて列数が制限されることを確認します。
     test('limits columns to item count', () {
       final rects = const CollageLayout().build(
         itemCount: 2,
@@ -58,6 +61,7 @@ void main() {
   });
 
   group('ExportSettings and SizeLimiter', () {
+    // 書き出し設定をJSON化して復元しても、設定値が維持されることを確認します。
     test('round-trips json', () {
       const settings = ExportSettings(
         width: 1920,
@@ -69,6 +73,7 @@ void main() {
       expect(ExportSettings.fromJson(settings.toJson()).toJson(), settings.toJson());
     });
 
+    // 出力サイズが目標バイト数を超えた場合だけ、品質調整の再試行が必要になることを確認します。
     test('retries only when target bytes are exceeded', () {
       const limiter = SizeLimiter();
 
@@ -92,6 +97,7 @@ void main() {
   });
 
   group('ProjectDocument', () {
+    // プロジェクト情報、使用画像、撮影情報、書き出し設定がJSONから復元されることを確認します。
     test('round-trips project json', () {
       final now = DateTime.utc(2026, 7, 7, 1, 2, 3);
       final document = ProjectDocument(
