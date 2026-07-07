@@ -654,19 +654,21 @@ class ExportControls extends StatefulWidget {
 }
 
 class _ExportControlsState extends State<ExportControls> {
+  static const _bytesPerMegabyte = 1024 * 1024;
+
   late final TextEditingController _width;
   late final TextEditingController _height;
-  late final TextEditingController _targetKb;
+  late final TextEditingController _targetMb;
 
   @override
   void initState() {
     super.initState();
     _width = TextEditingController(text: widget.settings.width.toString());
     _height = TextEditingController(text: widget.settings.height.toString());
-    _targetKb = TextEditingController(
+    _targetMb = TextEditingController(
       text: widget.settings.targetBytes == null
           ? ''
-          : (widget.settings.targetBytes! ~/ 1024).toString(),
+          : _formatMegabytes(widget.settings.targetBytes!),
     );
   }
 
@@ -674,19 +676,21 @@ class _ExportControlsState extends State<ExportControls> {
   void dispose() {
     _width.dispose();
     _height.dispose();
-    _targetKb.dispose();
+    _targetMb.dispose();
     super.dispose();
   }
 
   void _commit() {
     final width = int.tryParse(_width.text) ?? widget.settings.width;
     final height = int.tryParse(_height.text) ?? widget.settings.height;
-    final targetKb = int.tryParse(_targetKb.text);
+    final targetMb = double.tryParse(_targetMb.text);
     widget.onChanged(
       ExportSettings(
         width: width,
         height: height,
-        targetBytes: targetKb == null || targetKb <= 0 ? null : targetKb * 1024,
+        targetBytes: targetMb == null || targetMb <= 0
+            ? null
+            : (targetMb * _bytesPerMegabyte).round(),
         jpegQuality: widget.settings.jpegQuality,
       ),
     );
@@ -700,17 +704,29 @@ class _ExportControlsState extends State<ExportControls> {
       children: [
         _numberField(_width, 'Width'),
         _numberField(_height, 'Height'),
-        _numberField(_targetKb, 'Target KB'),
+        _numberField(_targetMb, 'Target MB', decimal: true),
       ],
     );
   }
 
-  Widget _numberField(TextEditingController controller, String label) {
+  String _formatMegabytes(int bytes) {
+    final megabytes = bytes / _bytesPerMegabyte;
+    if (megabytes == megabytes.roundToDouble()) {
+      return megabytes.toStringAsFixed(0);
+    }
+    return megabytes.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
+  Widget _numberField(
+    TextEditingController controller,
+    String label, {
+    bool decimal = false,
+  }) {
     return SizedBox(
       width: 160,
       child: TextField(
         controller: controller,
-        keyboardType: TextInputType.number,
+        keyboardType: TextInputType.numberWithOptions(decimal: decimal),
         onChanged: (_) => _commit(),
         decoration: InputDecoration(
           border: const OutlineInputBorder(),
