@@ -148,5 +148,19 @@ void main() {
       expect(settings.leftFrameWidth, 80);
       expect(settings.toJson()['bottomPanelHeight'], 260);
     });
+
+    test('round-trips text placement settings', () {
+      const settings = FrameSettings(
+        textHorizontalAlignment: TextHorizontalAlignment.right,
+        textVerticalAlignment: TextVerticalAlignment.top,
+        textPlacement: TextPlacement.image,
+      );
+
+      final restored = FrameSettings.fromJson(settings.toJson());
+
+      expect(restored.textHorizontalAlignment, TextHorizontalAlignment.right);
+      expect(restored.textVerticalAlignment, TextVerticalAlignment.top);
+      expect(restored.textPlacement, TextPlacement.image);
+    });
   });
 }

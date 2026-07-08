@@ -492,57 +492,113 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
             ],
           ),
           const SizedBox(height: 16),
-          SliderField(
-            label: 'Top Frame',
-            value: _frame.topFrameWidth,
-            min: 0,
-            max: 600,
-            onChanged: (value) {
-              setState(() {
-                _frame = _frame.copyWith(topFrameWidth: value);
-              });
-              _schedulePreviewRefresh();
-            },
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              SegmentedField<TextPlacement>(
+                label: 'Text Location',
+                value: _frame.textPlacement,
+                options: const {
+                  TextPlacement.bottomFrame: 'Bottom Frame',
+                  TextPlacement.topFrame: 'Top Frame',
+                  TextPlacement.image: 'On Image',
+                },
+                onChanged: (value) {
+                  setState(() => _frame = _frame.copyWith(textPlacement: value));
+                  _schedulePreviewRefresh();
+                },
+              ),
+              SegmentedField<TextHorizontalAlignment>(
+                label: 'Horizontal',
+                value: _frame.textHorizontalAlignment,
+                options: const {
+                  TextHorizontalAlignment.left: 'Left',
+                  TextHorizontalAlignment.center: 'Center',
+                  TextHorizontalAlignment.right: 'Right',
+                },
+                onChanged: (value) {
+                  setState(
+                    () => _frame = _frame.copyWith(
+                      textHorizontalAlignment: value,
+                    ),
+                  );
+                  _schedulePreviewRefresh();
+                },
+              ),
+              SegmentedField<TextVerticalAlignment>(
+                label: 'Vertical',
+                value: _frame.textVerticalAlignment,
+                options: const {
+                  TextVerticalAlignment.top: 'Top',
+                  TextVerticalAlignment.center: 'Center',
+                  TextVerticalAlignment.bottom: 'Bottom',
+                },
+                onChanged: (value) {
+                  setState(
+                    () => _frame = _frame.copyWith(
+                      textVerticalAlignment: value,
+                    ),
+                  );
+                  _schedulePreviewRefresh();
+                },
+              ),
+            ],
           ),
-          SliderField(
-            label: 'Right Frame',
-            value: _frame.rightFrameWidth,
-            min: 0,
-            max: 600,
-            onChanged: (value) {
-              setState(() {
-                _frame = _frame.copyWith(rightFrameWidth: value);
-              });
-              _schedulePreviewRefresh();
-            },
-          ),
-          SliderField(
-            label: 'Bottom Frame',
-            value: _frame.bottomFrameWidth,
-            min: 0,
-            max: 800,
-            onChanged: (value) {
-              setState(() {
-                _frame = _frame.copyWith(
-                  bottomFrameWidth: value,
-                  bottomPanelHeight: value,
-                );
-              });
-              _schedulePreviewRefresh();
-            },
-          ),
-          SliderField(
-            label: 'Left Frame',
-            value: _frame.leftFrameWidth,
-            min: 0,
-            max: 600,
-            onChanged: (value) {
-              setState(() {
-                _frame = _frame.copyWith(leftFrameWidth: value);
-              });
-              _schedulePreviewRefresh();
-            },
-          ),
+          if (_frame.textPlacement != TextPlacement.image) ...[
+            const SizedBox(height: 16),
+            SliderField(
+              label: 'Top Frame',
+              value: _frame.topFrameWidth,
+              min: 0,
+              max: 600,
+              onChanged: (value) {
+                setState(() {
+                  _frame = _frame.copyWith(topFrameWidth: value);
+                });
+                _schedulePreviewRefresh();
+              },
+            ),
+            SliderField(
+              label: 'Right Frame',
+              value: _frame.rightFrameWidth,
+              min: 0,
+              max: 600,
+              onChanged: (value) {
+                setState(() {
+                  _frame = _frame.copyWith(rightFrameWidth: value);
+                });
+                _schedulePreviewRefresh();
+              },
+            ),
+            SliderField(
+              label: 'Bottom Frame',
+              value: _frame.bottomFrameWidth,
+              min: 0,
+              max: 800,
+              onChanged: (value) {
+                setState(() {
+                  _frame = _frame.copyWith(
+                    bottomFrameWidth: value,
+                    bottomPanelHeight: value,
+                  );
+                });
+                _schedulePreviewRefresh();
+              },
+            ),
+            SliderField(
+              label: 'Left Frame',
+              value: _frame.leftFrameWidth,
+              min: 0,
+              max: 600,
+              onChanged: (value) {
+                setState(() {
+                  _frame = _frame.copyWith(leftFrameWidth: value);
+                });
+                _schedulePreviewRefresh();
+              },
+            ),
+          ],
           SliderField(
             label: 'Font Size',
             value: _frame.textStyle.fontSize,
@@ -1026,6 +1082,48 @@ class SliderField extends StatelessWidget {
         ),
         SizedBox(width: 64, child: Text(value.round().toString())),
       ],
+    );
+  }
+}
+
+class SegmentedField<T> extends StatelessWidget {
+  const SegmentedField({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    super.key,
+  });
+
+  final String label;
+  final T value;
+  final Map<T, String> options;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 420,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          SizedBox(width: 112, child: Text(label)),
+          SegmentedButton<T>(
+            segments: options.entries
+                .map(
+                  (entry) => ButtonSegment<T>(
+                    value: entry.key,
+                    label: Text(entry.value),
+                  ),
+                )
+                .toList(),
+            selected: {value},
+            onSelectionChanged: (selected) => onChanged(selected.single),
+          ),
+        ],
+      ),
     );
   }
 }

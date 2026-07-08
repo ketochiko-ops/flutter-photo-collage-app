@@ -3,6 +3,12 @@ import 'photo_metadata.dart';
 
 enum ProjectKind { frame, collage }
 
+enum TextHorizontalAlignment { left, center, right }
+
+enum TextVerticalAlignment { top, center, bottom }
+
+enum TextPlacement { topFrame, bottomFrame, image }
+
 class ProjectAsset {
   const ProjectAsset({
     required this.id,
@@ -79,6 +85,9 @@ class FrameSettings {
     this.bottomPanelHeight = 220,
     this.imagePadding = 24,
     this.textStyle = const TextStyleSettings(),
+    this.textHorizontalAlignment = TextHorizontalAlignment.left,
+    this.textVerticalAlignment = TextVerticalAlignment.center,
+    this.textPlacement = TextPlacement.bottomFrame,
   });
 
   final int borderColor;
@@ -91,6 +100,9 @@ class FrameSettings {
   final double bottomPanelHeight;
   final double imagePadding;
   final TextStyleSettings textStyle;
+  final TextHorizontalAlignment textHorizontalAlignment;
+  final TextVerticalAlignment textVerticalAlignment;
+  final TextPlacement textPlacement;
 
   FrameSettings copyWith({
     int? borderColor,
@@ -103,6 +115,9 @@ class FrameSettings {
     double? bottomPanelHeight,
     double? imagePadding,
     TextStyleSettings? textStyle,
+    TextHorizontalAlignment? textHorizontalAlignment,
+    TextVerticalAlignment? textVerticalAlignment,
+    TextPlacement? textPlacement,
   }) {
     return FrameSettings(
       borderColor: borderColor ?? this.borderColor,
@@ -116,6 +131,10 @@ class FrameSettings {
           bottomPanelHeight ?? bottomFrameWidth ?? this.bottomPanelHeight,
       imagePadding: imagePadding ?? this.imagePadding,
       textStyle: textStyle ?? this.textStyle,
+      textHorizontalAlignment:
+          textHorizontalAlignment ?? this.textHorizontalAlignment,
+      textVerticalAlignment: textVerticalAlignment ?? this.textVerticalAlignment,
+      textPlacement: textPlacement ?? this.textPlacement,
     );
   }
 
@@ -130,6 +149,9 @@ class FrameSettings {
         'bottomPanelHeight': bottomFrameWidth,
         'imagePadding': imagePadding,
         'textStyle': textStyle.toJson(),
+        'textHorizontalAlignment': textHorizontalAlignment.name,
+        'textVerticalAlignment': textVerticalAlignment.name,
+        'textPlacement': textPlacement.name,
       };
 
   factory FrameSettings.fromJson(Map<String, dynamic> json) {
@@ -155,8 +177,35 @@ class FrameSettings {
       textStyle: TextStyleSettings.fromJson(
         json['textStyle'] as Map<String, dynamic>? ?? const <String, dynamic>{},
       ),
+      textHorizontalAlignment: _enumValue(
+        TextHorizontalAlignment.values,
+        json['textHorizontalAlignment'] as String?,
+        TextHorizontalAlignment.left,
+      ),
+      textVerticalAlignment: _enumValue(
+        TextVerticalAlignment.values,
+        json['textVerticalAlignment'] as String?,
+        TextVerticalAlignment.center,
+      ),
+      textPlacement: _enumValue(
+        TextPlacement.values,
+        json['textPlacement'] as String?,
+        TextPlacement.bottomFrame,
+      ),
     );
   }
+}
+
+T _enumValue<T extends Enum>(List<T> values, String? name, T fallback) {
+  if (name == null) {
+    return fallback;
+  }
+  for (final value in values) {
+    if (value.name == name) {
+      return value;
+    }
+  }
+  return fallback;
 }
 
 class CollageSettings {

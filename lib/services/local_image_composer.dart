@@ -29,18 +29,24 @@ class LocalImageComposer {
     final picture = ui.PictureRecorder();
     final canvas = Canvas(picture);
 
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = Color(frameSettings.backgroundColor),
-    );
+    if (frameSettings.textPlacement != TextPlacement.image) {
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()..color = Color(frameSettings.backgroundColor),
+      );
+    }
 
-    final imageBounds = Rect.fromLTRB(
-      frameSettings.leftFrameWidth,
-      frameSettings.topFrameWidth,
-      size.width - frameSettings.rightFrameWidth,
-      size.height - frameSettings.bottomFrameWidth,
-    );
-    final imageRect = _safeDeflate(imageBounds, frameSettings.imagePadding);
+    final imageBounds = frameSettings.textPlacement == TextPlacement.image
+        ? Offset.zero & size
+        : Rect.fromLTRB(
+            frameSettings.leftFrameWidth,
+            frameSettings.topFrameWidth,
+            size.width - frameSettings.rightFrameWidth,
+            size.height - frameSettings.bottomFrameWidth,
+          );
+    final imageRect = frameSettings.textPlacement == TextPlacement.image
+        ? imageBounds
+        : _safeDeflate(imageBounds, frameSettings.imagePadding);
 
     _drawFittedImage(canvas, image, imageRect, BoxFit.contain);
     _drawMetadataPanel(canvas, size, metadata, frameSettings);
@@ -128,13 +134,21 @@ class LocalImageComposer {
     PhotoMetadata metadata,
     FrameSettings settings,
   ) {
-    final panelTop = size.height - settings.bottomFrameWidth;
-    final panel = Rect.fromLTWH(
-      settings.leftFrameWidth,
-      panelTop,
-      size.width - settings.leftFrameWidth - settings.rightFrameWidth,
-      settings.bottomFrameWidth,
-    );
+    final panel = switch (settings.textPlacement) {
+      TextPlacement.topFrame => Rect.fromLTWH(
+          settings.leftFrameWidth,
+          0,
+          size.width - settings.leftFrameWidth - settings.rightFrameWidth,
+          settings.topFrameWidth,
+        ),
+      TextPlacement.bottomFrame => Rect.fromLTWH(
+          settings.leftFrameWidth,
+          size.height - settings.bottomFrameWidth,
+          size.width - settings.leftFrameWidth - settings.rightFrameWidth,
+          settings.bottomFrameWidth,
+        ),
+      TextPlacement.image => (Offset.zero & size).deflate(settings.imagePadding),
+    };
     if (panel.width <= 0 || panel.height <= 0) {
       return;
     }
@@ -157,12 +171,25 @@ class LocalImageComposer {
     final painter = TextPainter(
       text: TextSpan(children: children),
       textDirection: TextDirection.ltr,
+      textAlign: _textAlign(settings.textHorizontalAlignment),
       maxLines: 3,
       ellipsis: '...',
-    )..layout(maxWidth: panel.width);
+    )..layout(minWidth: panel.width, maxWidth: panel.width);
 
-    final dy = panel.top + (panel.height - painter.height) / 2;
+    final dy = switch (settings.textVerticalAlignment) {
+      TextVerticalAlignment.top => panel.top,
+      TextVerticalAlignment.center => panel.top + (panel.height - painter.height) / 2,
+      TextVerticalAlignment.bottom => panel.bottom - painter.height,
+    };
     painter.paint(canvas, Offset(panel.left, dy));
+  }
+
+  TextAlign _textAlign(TextHorizontalAlignment alignment) {
+    return switch (alignment) {
+      TextHorizontalAlignment.left => TextAlign.left,
+      TextHorizontalAlignment.center => TextAlign.center,
+      TextHorizontalAlignment.right => TextAlign.right,
+    };
   }
 
   Rect _safeDeflate(Rect rect, double delta) {
