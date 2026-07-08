@@ -17,6 +17,7 @@ import 'models/project_document.dart';
 import 'services/local_image_composer.dart';
 import 'services/metadata_extractor.dart';
 import 'services/project_repository.dart';
+import 'services/system_font_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -117,6 +118,7 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
   final _composer = LocalImageComposer();
   final _metadataExtractor = const MetadataExtractor();
   final _repository = const ProjectRepository();
+  final _fontService = const SystemFontService();
   final _uuid = const Uuid();
 
   File? _imageFile;
@@ -130,8 +132,10 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
   String? _previewError;
   bool _busy = false;
   bool _previewing = false;
+  bool _loadingFonts = true;
   int _previewVersion = 0;
   Timer? _previewDebounce;
+  List<String> _fontFamilies = const ['System'];
 
   final _controllers = <String, TextEditingController>{
     'camera': TextEditingController(),
@@ -140,8 +144,13 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
     'aperture': TextEditingController(),
     'shutter': TextEditingController(),
     'iso': TextEditingController(),
-    'font': TextEditingController(text: 'System'),
   };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFontFamilies();
+  }
 
   @override
   void dispose() {
@@ -150,6 +159,33 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _loadFontFamilies() async {
+    final fonts = await _fontService.loadFontFamilies();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _fontFamilies = _withCurrentFont(fonts);
+      _loadingFonts = false;
+    });
+  }
+
+  List<String> _withCurrentFont(List<String> fonts) {
+    final current = _frame.textStyle.fontFamily.trim();
+    if (current.isEmpty || fonts.contains(current)) {
+      return fonts;
+    }
+    return [...fonts, current]..sort((a, b) {
+        if (a == 'System') {
+          return -1;
+        }
+        if (b == 'System') {
+          return 1;
+        }
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
   }
 
   Future<void> _selectImage() async {
@@ -266,7 +302,6 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
     _controllers['aperture']!.text = _metadata.aperture;
     _controllers['shutter']!.text = _metadata.shutterSpeed;
     _controllers['iso']!.text = _metadata.iso;
-    _controllers['font']!.text = _frame.textStyle.fontFamily;
   }
 
   void _readMetadataFromControllers() {
@@ -277,13 +312,6 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
       aperture: _controllers['aperture']!.text,
       shutterSpeed: _controllers['shutter']!.text,
       iso: _controllers['iso']!.text,
-    );
-    _frame = _frame.copyWith(
-      textStyle: _frame.textStyle.copyWith(
-        fontFamily: _controllers['font']!.text.trim().isEmpty
-            ? 'System'
-            : _controllers['font']!.text.trim(),
-      ),
     );
   }
 
@@ -448,7 +476,21 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
                 onChanged: _schedulePreviewRefresh,
               ),
               _field('iso', 'ISO', onChanged: _schedulePreviewRefresh),
-              _field('font', 'Font Family', onChanged: _schedulePreviewRefresh),
+              FontFamilyDropdown(
+                fonts: _fontFamilies,
+                value: _frame.textStyle.fontFamily,
+                loading: _loadingFonts,
+                onChanged: (font) {
+                  setState(() {
+                    _frame = _frame.copyWith(
+                      textStyle: _frame.textStyle.copyWith(
+                        fontFamily: font,
+                      ),
+                    );
+                  });
+                  _schedulePreviewRefresh();
+                },
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -628,6 +670,71 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
           border: const OutlineInputBorder(),
           labelText: label,
         ),
+      ),
+    );
+  }
+}
+
+class FontFamilyDropdown extends StatelessWidget {
+  const FontFamilyDropdown({
+    required this.fonts,
+    required this.value,
+    required this.loading,
+    required this.onChanged,
+    super.key,
+  });
+
+  final List<String> fonts;
+  final String value;
+  final bool loading;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentValue = fonts.contains(value) ? value : 'System';
+    return SizedBox(
+      width: 260,
+      child: DropdownButtonFormField<String>(
+        value: currentValue,
+        isExpanded: true,
+        decoration: InputDecoration(
+          border: const OutlineInputBorder(),
+          labelText: loading ? 'Loading Fonts' : 'Font Family',
+        ),
+        items: fonts
+            .map(
+              (font) => DropdownMenuItem<String>(
+                value: font,
+                child: Text(
+                  font,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: font == 'System' ? null : font,
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+        selectedItemBuilder: (context) => fonts
+            .map(
+              (font) => Text(
+                font,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: font == 'System' ? null : font,
+                ),
+              ),
+            )
+            .toList(),
+        onChanged: loading
+            ? null
+            : (font) {
+                if (font != null) {
+                  onChanged(font);
+                }
+              },
       ),
     );
   }
