@@ -762,6 +762,7 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
             min: 1,
             max: 6,
             divisions: 5,
+            integer: true,
             onChanged: (value) {
               setState(() {
                 _collage = _collage.copyWith(columns: value.round());
@@ -1047,7 +1048,7 @@ class _ExportControlsState extends State<ExportControls> {
   }
 }
 
-class SliderField extends StatelessWidget {
+class SliderField extends StatefulWidget {
   const SliderField({
     required this.label,
     required this.value,
@@ -1055,6 +1056,7 @@ class SliderField extends StatelessWidget {
     required this.max,
     required this.onChanged,
     this.divisions,
+    this.integer = false,
     super.key,
   });
 
@@ -1063,24 +1065,97 @@ class SliderField extends StatelessWidget {
   final double min;
   final double max;
   final int? divisions;
+  final bool integer;
   final ValueChanged<double> onChanged;
+
+  @override
+  State<SliderField> createState() => _SliderFieldState();
+}
+
+class _SliderFieldState extends State<SliderField> {
+  late final TextEditingController _controller;
+  late double _lastValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastValue = widget.value;
+    _controller = TextEditingController(text: _formatValue(widget.value));
+  }
+
+  @override
+  void didUpdateWidget(SliderField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != _lastValue && widget.value != oldWidget.value) {
+      _lastValue = widget.value;
+      _controller.text = _formatValue(widget.value);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _formatValue(double value) {
+    if (widget.integer) {
+      return value.round().toString();
+    }
+    if (value == value.roundToDouble()) {
+      return value.round().toString();
+    }
+    return value.toStringAsFixed(1).replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
+  void _commitText(String text) {
+    final parsed = double.tryParse(text);
+    if (parsed == null) {
+      return;
+    }
+    final normalized = widget.integer ? parsed.roundToDouble() : parsed;
+    final clamped = normalized.clamp(widget.min, widget.max).toDouble();
+    _lastValue = clamped;
+    widget.onChanged(clamped);
+    if (clamped != parsed) {
+      _controller.text = _formatValue(clamped);
+    }
+  }
+
+  void _handleSliderChanged(double value) {
+    _lastValue = value;
+    _controller.text = _formatValue(value);
+    widget.onChanged(value);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        SizedBox(width: 120, child: Text(label)),
+        SizedBox(width: 120, child: Text(widget.label)),
         Expanded(
           child: Slider(
-            value: value.clamp(min, max).toDouble(),
-            min: min,
-            max: max,
-            divisions: divisions,
-            label: value.round().toString(),
-            onChanged: onChanged,
+            value: widget.value.clamp(widget.min, widget.max).toDouble(),
+            min: widget.min,
+            max: widget.max,
+            divisions: widget.divisions,
+            label: _formatValue(widget.value),
+            onChanged: _handleSliderChanged,
           ),
         ),
-        SizedBox(width: 64, child: Text(value.round().toString())),
+        SizedBox(
+          width: 88,
+          child: TextField(
+            controller: _controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: _commitText,
+            onSubmitted: _commitText,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+        ),
       ],
     );
   }

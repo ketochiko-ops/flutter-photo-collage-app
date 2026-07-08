@@ -48,4 +48,31 @@ void main() {
 
     expect(changed?.longSide, isNull);
   });
+
+  testWidgets('slider field accepts direct numeric input', (tester) async {
+    var value = 12.0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              return SliderField(
+                label: 'Value',
+                value: value,
+                min: 0,
+                max: 100,
+                onChanged: (next) => setState(() => value = next),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.widgetWithText(TextField, '12'), '42.5');
+    await tester.pump();
+
+    expect(value, 42.5);
+  });
 }
