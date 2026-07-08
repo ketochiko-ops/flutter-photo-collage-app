@@ -7,6 +7,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:image/image.dart' as image_lib;
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
@@ -120,8 +121,10 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
 
   File? _imageFile;
   Uint8List? _previewBytes;
+  double? _sourceAspectRatio;
+  int? _sourceLongSide;
   PhotoMetadata _metadata = const PhotoMetadata();
-  ExportSettings _export = const ExportSettings(width: 3000, height: 2000);
+  ExportSettings _export = const ExportSettings();
   FrameSettings _frame = const FrameSettings();
   String _status = '';
   String? _previewError;
@@ -156,13 +159,27 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
     }
     final selected = File(file.path);
     PhotoMetadata extracted;
+    double? sourceAspectRatio;
+    int? sourceLongSide;
     try {
       extracted = await _metadataExtractor.extract(selected);
     } catch (_) {
       extracted = const PhotoMetadata();
     }
+    try {
+      final decoded = image_lib.decodeImage(await selected.readAsBytes());
+      if (decoded != null && decoded.height > 0) {
+        sourceAspectRatio = decoded.width / decoded.height;
+        sourceLongSide = math.max(decoded.width, decoded.height);
+      }
+    } catch (_) {
+      sourceAspectRatio = null;
+      sourceLongSide = null;
+    }
     setState(() {
       _imageFile = selected;
+      _sourceAspectRatio = sourceAspectRatio;
+      _sourceLongSide = sourceLongSide;
       _metadata = extracted;
       _syncControllersFromMetadata();
       _status = '画像を読み込みました: ${p.basename(selected.path)}';
@@ -297,7 +314,7 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
     }
     if (!_export.hasValidSize) {
       setState(() {
-        _previewError = 'Preview requires a positive width and height.';
+        _previewError = 'Long side must be blank or greater than 0.';
         _previewing = false;
       });
       return;
@@ -336,24 +353,33 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
 
   ExportSettings _previewExportSettings() {
     const maxPreviewSide = 1200;
-    final longestSide = math.max(_export.width, _export.height);
-    if (longestSide <= maxPreviewSide) {
+    final requestedLongSide = _export.longSide;
+    if (requestedLongSide != null) {
       return ExportSettings(
-        width: _export.width,
-        height: _export.height,
+        longSide: math.min(requestedLongSide, maxPreviewSide),
         jpegQuality: 86,
       );
     }
-    final scale = maxPreviewSide / longestSide;
+
+    final sourceLongSide = _sourceLongSide;
+    if (sourceLongSide == null || sourceLongSide <= maxPreviewSide) {
+      return const ExportSettings(jpegQuality: 86);
+    }
     return ExportSettings(
-      width: math.max(1, (_export.width * scale).round()),
-      height: math.max(1, (_export.height * scale).round()),
+      longSide: maxPreviewSide,
       jpegQuality: 86,
     );
   }
 
   FrameSettings _previewFrameSettings(ExportSettings previewExport) {
-    final scale = previewExport.width / _export.width;
+    final previewLongSide = previewExport.longSide;
+    final outputLongSide = _export.longSide ?? _sourceLongSide;
+    if (previewLongSide == null ||
+        outputLongSide == null ||
+        outputLongSide <= 0) {
+      return _frame;
+    }
+    final scale = previewLongSide / outputLongSide;
     return _frame.copyWith(
       topFrameWidth: _frame.topFrameWidth * scale,
       rightFrameWidth: _frame.rightFrameWidth * scale,
@@ -395,7 +421,7 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
           OutputImagePreview(
             bytes: _previewBytes,
             fileName: _imageFile == null ? null : p.basename(_imageFile!.path),
-            aspectRatio: _export.aspectRatio,
+            aspectRatio: _sourceAspectRatio ?? _export.aspectRatio,
             loading: _previewing,
             error: _previewError,
           ),
@@ -564,7 +590,7 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
   final _uuid = const Uuid();
 
   List<File> _imageFiles = const [];
-  ExportSettings _export = const ExportSettings(width: 3000, height: 3000);
+  ExportSettings _export = const ExportSettings();
   CollageSettings _collage = const CollageSettings();
   bool _busy = false;
   String _status = '';
@@ -888,15 +914,15 @@ class ExportControls extends StatefulWidget {
 class _ExportControlsState extends State<ExportControls> {
   static const _bytesPerMegabyte = 1024 * 1024;
 
-  late final TextEditingController _width;
-  late final TextEditingController _height;
+  late final TextEditingController _longSide;
   late final TextEditingController _targetMb;
 
   @override
   void initState() {
     super.initState();
-    _width = TextEditingController(text: widget.settings.width.toString());
-    _height = TextEditingController(text: widget.settings.height.toString());
+    _longSide = TextEditingController(
+      text: widget.settings.longSide?.toString() ?? '',
+    );
     _targetMb = TextEditingController(
       text: widget.settings.targetBytes == null
           ? ''
@@ -906,20 +932,17 @@ class _ExportControlsState extends State<ExportControls> {
 
   @override
   void dispose() {
-    _width.dispose();
-    _height.dispose();
+    _longSide.dispose();
     _targetMb.dispose();
     super.dispose();
   }
 
   void _commit() {
-    final width = int.tryParse(_width.text) ?? widget.settings.width;
-    final height = int.tryParse(_height.text) ?? widget.settings.height;
+    final longSide = int.tryParse(_longSide.text);
     final targetMb = double.tryParse(_targetMb.text);
     widget.onChanged(
       ExportSettings(
-        width: width,
-        height: height,
+        longSide: longSide == null || longSide <= 0 ? null : longSide,
         targetBytes: targetMb == null || targetMb <= 0
             ? null
             : (targetMb * _bytesPerMegabyte).round(),
@@ -934,8 +957,7 @@ class _ExportControlsState extends State<ExportControls> {
       spacing: 12,
       runSpacing: 12,
       children: [
-        _numberField(_width, 'Width'),
-        _numberField(_height, 'Height'),
+        _numberField(_longSide, 'Long Side'),
         _numberField(_targetMb, 'Target MB', decimal: true),
       ],
     );

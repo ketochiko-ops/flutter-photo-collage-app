@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -23,19 +24,16 @@ class LocalImageComposer {
     required ExportSettings exportSettings,
     required FrameSettings frameSettings,
   }) async {
+    final image = await _decodeUiImage(await imageFile.readAsBytes());
+    final size = _resolveFrameCanvasSize(image, exportSettings);
     final picture = ui.PictureRecorder();
     final canvas = Canvas(picture);
-    final size = Size(
-      exportSettings.width.toDouble(),
-      exportSettings.height.toDouble(),
-    );
 
     canvas.drawRect(
       Offset.zero & size,
       Paint()..color = Color(frameSettings.backgroundColor),
     );
 
-    final image = await _decodeUiImage(await imageFile.readAsBytes());
     final imageBounds = Rect.fromLTRB(
       frameSettings.leftFrameWidth,
       frameSettings.topFrameWidth,
@@ -56,12 +54,13 @@ class LocalImageComposer {
     required ExportSettings exportSettings,
     required CollageSettings collageSettings,
   }) async {
+    final images = <ui.Image>[];
+    for (final imageFile in imageFiles) {
+      images.add(await _decodeUiImage(await imageFile.readAsBytes()));
+    }
+    final size = _resolveCollageCanvasSize(images, exportSettings);
     final picture = ui.PictureRecorder();
     final canvas = Canvas(picture);
-    final size = Size(
-      exportSettings.width.toDouble(),
-      exportSettings.height.toDouble(),
-    );
 
     canvas.drawRect(
       Offset.zero & size,
@@ -75,13 +74,44 @@ class LocalImageComposer {
       gutter: collageSettings.gutter,
     );
 
-    for (var index = 0; index < imageFiles.length; index++) {
-      final image = await _decodeUiImage(await imageFiles[index].readAsBytes());
-      _drawFittedImage(canvas, image, layout[index], BoxFit.cover);
+    for (var index = 0; index < images.length; index++) {
+      _drawFittedImage(canvas, images[index], layout[index], BoxFit.cover);
     }
 
     final rendered = await _renderPicture(picture, size);
     return _encodeJpegUnderTarget(rendered, exportSettings);
+  }
+
+  Size _resolveFrameCanvasSize(ui.Image image, ExportSettings settings) {
+    final sourceWidth = image.width.toDouble();
+    final sourceHeight = image.height.toDouble();
+    final requestedLongSide = settings.longSide;
+    if (requestedLongSide == null || requestedLongSide <= 0) {
+      return Size(sourceWidth, sourceHeight);
+    }
+
+    final scale = requestedLongSide / math.max(sourceWidth, sourceHeight);
+    return Size(
+      math.max(1.0, sourceWidth * scale),
+      math.max(1.0, sourceHeight * scale),
+    );
+  }
+
+  Size _resolveCollageCanvasSize(
+    List<ui.Image> images,
+    ExportSettings settings,
+  ) {
+    final requestedLongSide = settings.longSide;
+    if (requestedLongSide != null && requestedLongSide > 0) {
+      return Size.square(requestedLongSide.toDouble());
+    }
+    if (images.isEmpty) {
+      return const Size.square(1);
+    }
+    final longestSide = images
+        .map((image) => math.max(image.width, image.height))
+        .reduce(math.max);
+    return Size.square(longestSide.toDouble());
   }
 
   Future<void> writeJpeg({

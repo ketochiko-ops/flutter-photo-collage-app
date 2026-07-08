@@ -73,6 +73,15 @@ void main() {
       expect(ExportSettings.fromJson(settings.toJson()).toJson(), settings.toJson());
     });
 
+    test('restores long side from legacy width and height json', () {
+      final settings = ExportSettings.fromJson(const {
+        'width': 1920,
+        'height': 1080,
+      });
+
+      expect(settings.longSide, 1920);
+    });
+
     // 出力サイズが目標バイト数を超えた場合だけ、品質調整の再試行が必要になることを確認します。
     test('retries only when target bytes are exceeded', () {
       const limiter = SizeLimiter();

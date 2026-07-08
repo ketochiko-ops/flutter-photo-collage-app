@@ -26,8 +26,7 @@ void main() {
         home: Scaffold(
           body: ExportControls(
             settings: const ExportSettings(
-              width: 3000,
-              height: 2000,
+              longSide: 3000,
               targetBytes: 1572864,
             ),
             onChanged: (settings) => changed = settings,
@@ -37,10 +36,16 @@ void main() {
     );
 
     expect(find.text('Target MB'), findsOneWidget);
+    expect(find.text('Long Side'), findsOneWidget);
+    expect(find.text('3000'), findsOneWidget);
     expect(find.text('1.5'), findsOneWidget);
 
     await tester.enterText(find.widgetWithText(TextField, 'Target MB'), '2.25');
 
     expect(changed?.targetBytes, (2.25 * 1024 * 1024).round());
+
+    await tester.enterText(find.widgetWithText(TextField, 'Long Side'), '');
+
+    expect(changed?.longSide, isNull);
   });
 }
