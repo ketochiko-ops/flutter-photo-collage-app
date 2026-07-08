@@ -25,6 +25,20 @@ void main() async {
   runApp(const CollageApp());
 }
 
+String _nameTimestamp(DateTime value) {
+  String twoDigits(int number) => number.toString().padLeft(2, '0');
+
+  return [
+    value.year.toString().padLeft(4, '0'),
+    twoDigits(value.month),
+    twoDigits(value.day),
+    '_',
+    twoDigits(value.hour),
+    twoDigits(value.minute),
+    twoDigits(value.second),
+  ].join();
+}
+
 class CollageApp extends StatelessWidget {
   const CollageApp({super.key});
 
@@ -162,7 +176,9 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
       setState(() => _status = '先に画像を選択してください。');
       return;
     }
-    final location = await getSaveLocation(suggestedName: 'framed_photo.jpg');
+    final location = await getSaveLocation(
+      suggestedName: 'framed_photo_${_nameTimestamp(DateTime.now())}.jpg',
+    );
     if (location == null) {
       return;
     }
@@ -192,9 +208,10 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
     await _runBusy(() async {
       _readMetadataFromControllers();
       final now = DateTime.now();
+      final timestamp = _nameTimestamp(now);
       final document = ProjectDocument(
         id: _uuid.v4(),
-        name: p.basenameWithoutExtension(imageFile.path),
+        name: '${p.basenameWithoutExtension(imageFile.path)}_$timestamp',
         kind: ProjectKind.frame,
         createdAt: now,
         updatedAt: now,
@@ -465,7 +482,9 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
       setState(() => _status = '先に画像を選択してください。');
       return;
     }
-    final location = await getSaveLocation(suggestedName: 'collage.jpg');
+    final location = await getSaveLocation(
+      suggestedName: 'collage_${_nameTimestamp(DateTime.now())}.jpg',
+    );
     if (location == null) {
       return;
     }
@@ -491,9 +510,10 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
     }
     await _runBusy(() async {
       final now = DateTime.now();
+      final timestamp = _nameTimestamp(now);
       final document = ProjectDocument(
         id: _uuid.v4(),
-        name: 'collage_${now.millisecondsSinceEpoch}',
+        name: 'collage_$timestamp',
         kind: ProjectKind.collage,
         createdAt: now,
         updatedAt: now,
@@ -622,7 +642,9 @@ class _ProjectOpenPageState extends State<ProjectOpenPage> {
       setState(() => _status = '先にプロジェクトを開いてください。');
       return;
     }
-    final location = await getSaveLocation(suggestedName: '${document.name}.jpg');
+    final location = await getSaveLocation(
+      suggestedName: '${document.name}_${_nameTimestamp(DateTime.now())}.jpg',
+    );
     if (location == null) {
       return;
     }
