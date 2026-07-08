@@ -36,14 +36,13 @@ class LocalImageComposer {
     );
 
     final image = await _decodeUiImage(await imageFile.readAsBytes());
-    final imageRect = Rect.fromLTWH(
-      frameSettings.borderWidth,
-      frameSettings.borderWidth,
-      size.width - frameSettings.borderWidth * 2,
-      size.height -
-          frameSettings.borderWidth * 2 -
-          frameSettings.bottomPanelHeight,
-    ).deflate(frameSettings.imagePadding);
+    final imageBounds = Rect.fromLTRB(
+      frameSettings.leftFrameWidth,
+      frameSettings.topFrameWidth,
+      size.width - frameSettings.rightFrameWidth,
+      size.height - frameSettings.bottomFrameWidth,
+    );
+    final imageRect = _safeDeflate(imageBounds, frameSettings.imagePadding);
 
     _drawFittedImage(canvas, image, imageRect, BoxFit.contain);
     _drawMetadataPanel(canvas, size, metadata, frameSettings);
@@ -99,13 +98,16 @@ class LocalImageComposer {
     PhotoMetadata metadata,
     FrameSettings settings,
   ) {
-    final panelTop = size.height - settings.borderWidth - settings.bottomPanelHeight;
+    final panelTop = size.height - settings.bottomFrameWidth;
     final panel = Rect.fromLTWH(
-      settings.borderWidth,
+      settings.leftFrameWidth,
       panelTop,
-      size.width - settings.borderWidth * 2,
-      settings.bottomPanelHeight,
+      size.width - settings.leftFrameWidth - settings.rightFrameWidth,
+      settings.bottomFrameWidth,
     );
+    if (panel.width <= 0 || panel.height <= 0) {
+      return;
+    }
     final textColor = Color(settings.textStyle.textColor);
     final fontFamily =
         settings.textStyle.fontFamily == 'System' ? null : settings.textStyle.fontFamily;
@@ -131,6 +133,18 @@ class LocalImageComposer {
 
     final dy = panel.top + (panel.height - painter.height) / 2;
     painter.paint(canvas, Offset(panel.left, dy));
+  }
+
+  Rect _safeDeflate(Rect rect, double delta) {
+    if (rect.width <= 0 || rect.height <= 0) {
+      return Rect.fromLTWH(rect.left, rect.top, 1, 1);
+    }
+    final maxDelta = rect.shortestSide / 2 - 0.5;
+    if (maxDelta <= 0) {
+      return rect;
+    }
+    final safeDelta = delta.clamp(0, maxDelta).toDouble();
+    return rect.deflate(safeDelta);
   }
 
   Future<ui.Image> _decodeUiImage(Uint8List bytes) async {

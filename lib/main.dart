@@ -311,11 +311,12 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
     });
 
     try {
+      final previewExport = _previewExportSettings();
       final bytes = await _composer.composeFramedJpeg(
         imageFile: imageFile,
         metadata: _metadata,
-        exportSettings: _previewExportSettings(),
-        frameSettings: _frame,
+        exportSettings: previewExport,
+        frameSettings: _previewFrameSettings(previewExport),
       );
       if (!mounted || version != _previewVersion) {
         return;
@@ -348,6 +349,21 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
       width: math.max(1, (_export.width * scale).round()),
       height: math.max(1, (_export.height * scale).round()),
       jpegQuality: 86,
+    );
+  }
+
+  FrameSettings _previewFrameSettings(ExportSettings previewExport) {
+    final scale = previewExport.width / _export.width;
+    return _frame.copyWith(
+      topFrameWidth: _frame.topFrameWidth * scale,
+      rightFrameWidth: _frame.rightFrameWidth * scale,
+      bottomFrameWidth: _frame.bottomFrameWidth * scale,
+      leftFrameWidth: _frame.leftFrameWidth * scale,
+      bottomPanelHeight: _frame.bottomFrameWidth * scale,
+      imagePadding: _frame.imagePadding * scale,
+      textStyle: _frame.textStyle.copyWith(
+        fontSize: _frame.textStyle.fontSize * scale,
+      ),
     );
   }
 
@@ -414,6 +430,90 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
             settings: _export,
             onChanged: (settings) {
               setState(() => _export = settings);
+              _schedulePreviewRefresh();
+            },
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              ColorSwatchField(
+                label: 'Frame Color',
+                value: _frame.backgroundColor,
+                onChanged: (color) {
+                  setState(() {
+                    _frame = _frame.copyWith(
+                      backgroundColor: color,
+                      borderColor: color,
+                    );
+                  });
+                  _schedulePreviewRefresh();
+                },
+              ),
+              ColorSwatchField(
+                label: 'Text Color',
+                value: _frame.textStyle.textColor,
+                onChanged: (color) {
+                  setState(() {
+                    _frame = _frame.copyWith(
+                      textStyle: _frame.textStyle.copyWith(textColor: color),
+                    );
+                  });
+                  _schedulePreviewRefresh();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SliderField(
+            label: 'Top Frame',
+            value: _frame.topFrameWidth,
+            min: 0,
+            max: 600,
+            onChanged: (value) {
+              setState(() {
+                _frame = _frame.copyWith(topFrameWidth: value);
+              });
+              _schedulePreviewRefresh();
+            },
+          ),
+          SliderField(
+            label: 'Right Frame',
+            value: _frame.rightFrameWidth,
+            min: 0,
+            max: 600,
+            onChanged: (value) {
+              setState(() {
+                _frame = _frame.copyWith(rightFrameWidth: value);
+              });
+              _schedulePreviewRefresh();
+            },
+          ),
+          SliderField(
+            label: 'Bottom Frame',
+            value: _frame.bottomFrameWidth,
+            min: 0,
+            max: 800,
+            onChanged: (value) {
+              setState(() {
+                _frame = _frame.copyWith(
+                  bottomFrameWidth: value,
+                  bottomPanelHeight: value,
+                );
+              });
+              _schedulePreviewRefresh();
+            },
+          ),
+          SliderField(
+            label: 'Left Frame',
+            value: _frame.leftFrameWidth,
+            min: 0,
+            max: 600,
+            onChanged: (value) {
+              setState(() {
+                _frame = _frame.copyWith(leftFrameWidth: value);
+              });
               _schedulePreviewRefresh();
             },
           ),
@@ -904,6 +1004,137 @@ class SliderField extends StatelessWidget {
         ),
         SizedBox(width: 64, child: Text(value.round().toString())),
       ],
+    );
+  }
+}
+
+class ColorSwatchField extends StatefulWidget {
+  const ColorSwatchField({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    super.key,
+  });
+
+  static const _colors = [
+    0xFFFFFFFF,
+    0xFFF5F5F5,
+    0xFFE0E0E0,
+    0xFF9E9E9E,
+    0xFF212121,
+    0xFF000000,
+    0xFFB71C1C,
+    0xFF1B5E20,
+    0xFF0D47A1,
+    0xFFFFC107,
+  ];
+
+  final String label;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  State<ColorSwatchField> createState() => _ColorSwatchFieldState();
+}
+
+class _ColorSwatchFieldState extends State<ColorSwatchField> {
+  late final TextEditingController _hexController;
+
+  @override
+  void initState() {
+    super.initState();
+    _hexController = TextEditingController(text: _hexText(widget.value));
+  }
+
+  @override
+  void didUpdateWidget(ColorSwatchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _hexController.text = _hexText(widget.value);
+    }
+  }
+
+  @override
+  void dispose() {
+    _hexController.dispose();
+    super.dispose();
+  }
+
+  String _hexText(int value) {
+    return '#${value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
+  }
+
+  void _commitHex(String value) {
+    final cleaned = value.replaceAll('#', '').trim();
+    if (!RegExp(r'^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$').hasMatch(cleaned)) {
+      return;
+    }
+    final argb = cleaned.length == 6 ? 'FF$cleaned' : cleaned;
+    widget.onChanged(int.parse(argb, radix: 16));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 520,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          SizedBox(width: 92, child: Text(widget.label)),
+          ...ColorSwatchField._colors.map(
+            (colorValue) {
+              final selected = colorValue == widget.value;
+              final color = Color(colorValue);
+              return Tooltip(
+                message:
+                    '#${colorValue.toRadixString(16).padLeft(8, '0').toUpperCase()}',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => widget.onChanged(colorValue),
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color,
+                      border: Border.all(
+                        color: selected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).dividerColor,
+                        width: selected ? 3 : 1,
+                      ),
+                    ),
+                    child: selected
+                        ? Icon(
+                            Icons.check,
+                            size: 18,
+                            color: color.computeLuminance() > 0.5
+                                ? Colors.black
+                                : Colors.white,
+                          )
+                        : null,
+                  ),
+                ),
+              );
+            },
+          ),
+          SizedBox(
+            width: 112,
+            child: TextField(
+              controller: _hexController,
+              onSubmitted: _commitHex,
+              onEditingComplete: () => _commitHex(_hexController.text),
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'HEX',
+                isDense: true,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

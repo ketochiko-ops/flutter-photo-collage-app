@@ -126,5 +126,18 @@ void main() {
       expect(restored.metadata.camera, 'Camera');
       expect(restored.exportSettings.width, 3000);
     });
+
+    test('restores frame widths from legacy frame settings json', () {
+      final settings = FrameSettings.fromJson(const {
+        'borderWidth': 80,
+        'bottomPanelHeight': 260,
+      });
+
+      expect(settings.topFrameWidth, 80);
+      expect(settings.rightFrameWidth, 80);
+      expect(settings.bottomFrameWidth, 260);
+      expect(settings.leftFrameWidth, 80);
+      expect(settings.toJson()['bottomPanelHeight'], 260);
+    });
   });
 }

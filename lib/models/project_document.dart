@@ -72,6 +72,10 @@ class FrameSettings {
     this.borderColor = 0xFFFFFFFF,
     this.backgroundColor = 0xFFFFFFFF,
     this.borderWidth = 64,
+    this.topFrameWidth = 64,
+    this.rightFrameWidth = 64,
+    this.bottomFrameWidth = 220,
+    this.leftFrameWidth = 64,
     this.bottomPanelHeight = 220,
     this.imagePadding = 24,
     this.textStyle = const TextStyleSettings(),
@@ -80,6 +84,10 @@ class FrameSettings {
   final int borderColor;
   final int backgroundColor;
   final double borderWidth;
+  final double topFrameWidth;
+  final double rightFrameWidth;
+  final double bottomFrameWidth;
+  final double leftFrameWidth;
   final double bottomPanelHeight;
   final double imagePadding;
   final TextStyleSettings textStyle;
@@ -88,6 +96,10 @@ class FrameSettings {
     int? borderColor,
     int? backgroundColor,
     double? borderWidth,
+    double? topFrameWidth,
+    double? rightFrameWidth,
+    double? bottomFrameWidth,
+    double? leftFrameWidth,
     double? bottomPanelHeight,
     double? imagePadding,
     TextStyleSettings? textStyle,
@@ -96,7 +108,12 @@ class FrameSettings {
       borderColor: borderColor ?? this.borderColor,
       backgroundColor: backgroundColor ?? this.backgroundColor,
       borderWidth: borderWidth ?? this.borderWidth,
-      bottomPanelHeight: bottomPanelHeight ?? this.bottomPanelHeight,
+      topFrameWidth: topFrameWidth ?? this.topFrameWidth,
+      rightFrameWidth: rightFrameWidth ?? this.rightFrameWidth,
+      bottomFrameWidth: bottomFrameWidth ?? this.bottomFrameWidth,
+      leftFrameWidth: leftFrameWidth ?? this.leftFrameWidth,
+      bottomPanelHeight:
+          bottomPanelHeight ?? bottomFrameWidth ?? this.bottomPanelHeight,
       imagePadding: imagePadding ?? this.imagePadding,
       textStyle: textStyle ?? this.textStyle,
     );
@@ -106,17 +123,34 @@ class FrameSettings {
         'borderColor': borderColor,
         'backgroundColor': backgroundColor,
         'borderWidth': borderWidth,
-        'bottomPanelHeight': bottomPanelHeight,
+        'topFrameWidth': topFrameWidth,
+        'rightFrameWidth': rightFrameWidth,
+        'bottomFrameWidth': bottomFrameWidth,
+        'leftFrameWidth': leftFrameWidth,
+        'bottomPanelHeight': bottomFrameWidth,
         'imagePadding': imagePadding,
         'textStyle': textStyle.toJson(),
       };
 
   factory FrameSettings.fromJson(Map<String, dynamic> json) {
+    final legacyBorderWidth = (json['borderWidth'] as num?)?.toDouble() ?? 64;
+    final legacyBottomPanelHeight =
+        (json['bottomPanelHeight'] as num?)?.toDouble() ?? 220;
+
     return FrameSettings(
       borderColor: json['borderColor'] as int? ?? 0xFFFFFFFF,
       backgroundColor: json['backgroundColor'] as int? ?? 0xFFFFFFFF,
-      borderWidth: (json['borderWidth'] as num?)?.toDouble() ?? 64,
-      bottomPanelHeight: (json['bottomPanelHeight'] as num?)?.toDouble() ?? 220,
+      borderWidth: legacyBorderWidth,
+      topFrameWidth:
+          (json['topFrameWidth'] as num?)?.toDouble() ?? legacyBorderWidth,
+      rightFrameWidth:
+          (json['rightFrameWidth'] as num?)?.toDouble() ?? legacyBorderWidth,
+      bottomFrameWidth:
+          (json['bottomFrameWidth'] as num?)?.toDouble() ??
+              legacyBottomPanelHeight,
+      leftFrameWidth:
+          (json['leftFrameWidth'] as num?)?.toDouble() ?? legacyBorderWidth,
+      bottomPanelHeight: legacyBottomPanelHeight,
       imagePadding: (json['imagePadding'] as num?)?.toDouble() ?? 24,
       textStyle: TextStyleSettings.fromJson(
         json['textStyle'] as Map<String, dynamic>? ?? const <String, dynamic>{},
