@@ -158,7 +158,7 @@ class LocalImageComposer {
 
     final children = <InlineSpan>[
       TextSpan(
-        text: metadata.displayParts.join('  /  '),
+        text: metadata.displayParts.join('  '),
         style: TextStyle(
           color: textColor,
           fontFamily: fontFamily,
