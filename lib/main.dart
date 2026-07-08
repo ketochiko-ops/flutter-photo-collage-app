@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
@@ -102,14 +105,18 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
   final _uuid = const Uuid();
 
   File? _imageFile;
+  Uint8List? _previewBytes;
   PhotoMetadata _metadata = const PhotoMetadata();
   ExportSettings _export = const ExportSettings(width: 3000, height: 2000);
   FrameSettings _frame = const FrameSettings();
   String _status = '';
+  String? _previewError;
   bool _busy = false;
+  bool _previewing = false;
+  int _previewVersion = 0;
+  Timer? _previewDebounce;
 
   final _controllers = <String, TextEditingController>{
-    'equipment': TextEditingController(),
     'camera': TextEditingController(),
     'lens': TextEditingController(),
     'focal': TextEditingController(),
@@ -121,6 +128,7 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
 
   @override
   void dispose() {
+    _previewDebounce?.cancel();
     for (final controller in _controllers.values) {
       controller.dispose();
     }
@@ -145,6 +153,7 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
       _syncControllersFromMetadata();
       _status = '画像を読み込みました: ${p.basename(selected.path)}';
     });
+    await _refreshPreview();
   }
 
   Future<void> _exportJpeg() async {
@@ -217,7 +226,6 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
   }
 
   void _syncControllersFromMetadata() {
-    _controllers['equipment']!.text = _metadata.equipmentName;
     _controllers['camera']!.text = _metadata.camera;
     _controllers['lens']!.text = _metadata.lens;
     _controllers['focal']!.text = _metadata.focalLength;
@@ -229,7 +237,6 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
 
   void _readMetadataFromControllers() {
     _metadata = PhotoMetadata(
-      equipmentName: _controllers['equipment']!.text,
       camera: _controllers['camera']!.text,
       lens: _controllers['lens']!.text,
       focalLength: _controllers['focal']!.text,
@@ -243,6 +250,87 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
             ? 'System'
             : _controllers['font']!.text.trim(),
       ),
+    );
+  }
+
+  void _schedulePreviewRefresh() {
+    if (_imageFile == null) {
+      return;
+    }
+    _previewDebounce?.cancel();
+    _previewDebounce = Timer(
+      const Duration(milliseconds: 350),
+      () {
+        if (mounted) {
+          _refreshPreview();
+        }
+      },
+    );
+  }
+
+  Future<void> _refreshPreview() async {
+    final imageFile = _imageFile;
+    if (imageFile == null) {
+      setState(() {
+        _previewBytes = null;
+        _previewError = null;
+        _previewing = false;
+      });
+      return;
+    }
+    if (!_export.hasValidSize) {
+      setState(() {
+        _previewError = 'Preview requires a positive width and height.';
+        _previewing = false;
+      });
+      return;
+    }
+
+    _readMetadataFromControllers();
+    final version = ++_previewVersion;
+    setState(() {
+      _previewing = true;
+      _previewError = null;
+    });
+
+    try {
+      final bytes = await _composer.composeFramedJpeg(
+        imageFile: imageFile,
+        metadata: _metadata,
+        exportSettings: _previewExportSettings(),
+        frameSettings: _frame,
+      );
+      if (!mounted || version != _previewVersion) {
+        return;
+      }
+      setState(() => _previewBytes = bytes);
+    } catch (error) {
+      if (!mounted || version != _previewVersion) {
+        return;
+      }
+      setState(() => _previewError = error.toString());
+    } finally {
+      if (mounted && version == _previewVersion) {
+        setState(() => _previewing = false);
+      }
+    }
+  }
+
+  ExportSettings _previewExportSettings() {
+    const maxPreviewSide = 1200;
+    final longestSide = math.max(_export.width, _export.height);
+    if (longestSide <= maxPreviewSide) {
+      return ExportSettings(
+        width: _export.width,
+        height: _export.height,
+        jpegQuality: 86,
+      );
+    }
+    final scale = maxPreviewSide / longestSide;
+    return ExportSettings(
+      width: math.max(1, (_export.width * scale).round()),
+      height: math.max(1, (_export.height * scale).round()),
+      jpegQuality: 86,
     );
   }
 
@@ -271,26 +359,46 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          SelectedFilesPreview(files: [if (_imageFile != null) _imageFile!]),
+          OutputImagePreview(
+            bytes: _previewBytes,
+            fileName: _imageFile == null ? null : p.basename(_imageFile!.path),
+            aspectRatio: _export.aspectRatio,
+            loading: _previewing,
+            error: _previewError,
+          ),
           const SizedBox(height: 16),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: [
-              _field('equipment', '使用機材名'),
-              _field('camera', 'Camera'),
-              _field('lens', 'Lens'),
-              _field('focal', 'Focal Length'),
-              _field('aperture', 'Aperture'),
-              _field('shutter', 'Shutter'),
-              _field('iso', 'ISO'),
-              _field('font', 'Font Family'),
+              _field('camera', 'Camera', onChanged: _schedulePreviewRefresh),
+              _field('lens', 'Lens', onChanged: _schedulePreviewRefresh),
+              _field(
+                'focal',
+                'Focal Length',
+                onChanged: _schedulePreviewRefresh,
+              ),
+              _field(
+                'aperture',
+                'Aperture',
+                onChanged: _schedulePreviewRefresh,
+              ),
+              _field(
+                'shutter',
+                'Shutter',
+                onChanged: _schedulePreviewRefresh,
+              ),
+              _field('iso', 'ISO', onChanged: _schedulePreviewRefresh),
+              _field('font', 'Font Family', onChanged: _schedulePreviewRefresh),
             ],
           ),
           const SizedBox(height: 16),
           ExportControls(
             settings: _export,
-            onChanged: (settings) => setState(() => _export = settings),
+            onChanged: (settings) {
+              setState(() => _export = settings);
+              _schedulePreviewRefresh();
+            },
           ),
           SliderField(
             label: 'Font Size',
@@ -303,6 +411,7 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
                   textStyle: _frame.textStyle.copyWith(fontSize: value),
                 );
               });
+              _schedulePreviewRefresh();
             },
           ),
         ],
@@ -310,11 +419,12 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
     );
   }
 
-  Widget _field(String key, String label) {
+  Widget _field(String key, String label, {VoidCallback? onChanged}) {
     return SizedBox(
       width: 260,
       child: TextField(
         controller: _controllers[key],
+        onChanged: (_) => onChanged?.call(),
         decoration: InputDecoration(
           border: const OutlineInputBorder(),
           labelText: label,
@@ -771,6 +881,88 @@ class SliderField extends StatelessWidget {
           ),
         ),
         SizedBox(width: 64, child: Text(value.round().toString())),
+      ],
+    );
+  }
+}
+
+class OutputImagePreview extends StatelessWidget {
+  const OutputImagePreview({
+    required this.bytes,
+    required this.aspectRatio,
+    required this.loading,
+    this.fileName,
+    this.error,
+    super.key,
+  });
+
+  final Uint8List? bytes;
+  final double aspectRatio;
+  final bool loading;
+  final String? fileName;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageBytes = bytes;
+    final safeAspectRatio = aspectRatio.isFinite && aspectRatio > 0
+        ? aspectRatio
+        : 1.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 520),
+          child: AspectRatio(
+            aspectRatio: safeAspectRatio,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: Theme.of(context).dividerColor),
+                color: const Color(0xFFF4F6F8),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (imageBytes == null)
+                      const Center(child: Text('No image selected'))
+                    else
+                      Image.memory(imageBytes, fit: BoxFit.contain),
+                    if (loading)
+                      const ColoredBox(
+                        color: Color(0x66FFFFFF),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (fileName != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            fileName!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        if (error != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            error!,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
       ],
     );
   }

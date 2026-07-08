@@ -111,17 +111,6 @@ class LocalImageComposer {
         settings.textStyle.fontFamily == 'System' ? null : settings.textStyle.fontFamily;
 
     final children = <InlineSpan>[
-      if (metadata.equipmentName.trim().isNotEmpty)
-        TextSpan(
-          text: '${metadata.equipmentName.trim()}\n',
-          style: TextStyle(
-            color: textColor,
-            fontFamily: fontFamily,
-            fontSize: settings.textStyle.fontSize * 1.08,
-            fontWeight: FontWeight.w700,
-            height: 1.24,
-          ),
-        ),
       TextSpan(
         text: metadata.displayParts.join('  /  '),
         style: TextStyle(
