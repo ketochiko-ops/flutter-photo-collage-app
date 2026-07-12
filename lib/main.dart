@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
@@ -393,7 +392,7 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
     if (sourceLongSide == null || sourceLongSide <= maxPreviewSide) {
       return const ExportSettings(jpegQuality: 86);
     }
-    return ExportSettings(
+    return const ExportSettings(
       longSide: maxPreviewSide,
       jpegQuality: 86,
     );
@@ -695,7 +694,7 @@ class FontFamilyDropdown extends StatelessWidget {
     return SizedBox(
       width: 260,
       child: DropdownButtonFormField<String>(
-        value: currentValue,
+        initialValue: currentValue,
         isExpanded: true,
         decoration: InputDecoration(
           border: const OutlineInputBorder(),

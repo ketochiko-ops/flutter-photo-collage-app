@@ -63,3 +63,66 @@ flutter test
 - プロジェクト保存: `lib/services/project_repository.dart`
 
 Google Mobile AdsはAndroid / iOSのみで初期化します。Windowsデスクトップ実行時は広告枠は空表示になります。
+
+## macOS でのデバッグ実行
+
+事前に以下をインストールしてください。
+
+- Flutter SDK
+- Xcode
+- Xcode Command Line Tools
+- VS Code または Android Studio
+
+このリポジトリではmacOSデスクトップ用ランナーを同梱しています。VS Codeでフォルダを開き、デバイスに `macOS` を選んで `F5` を押すとデバッグ実行できます。
+
+### 1. Xcodeの状態確認
+
+macOSデスクトップアプリのビルドにはフル版Xcodeが必要です。Xcodeをインストール後、以下で `xcodebuild` が使えることを確認してください。
+
+```bash
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+xcodebuild -version
+```
+
+`xcode-select -p` が `/Library/Developer/CommandLineTools` を指している場合、`flutter run -d macos` が `unable to find utility "xcodebuild"` で失敗します。その場合も上記の `xcode-select` コマンドでXcode本体へ切り替えてください。
+
+App StoreからXcodeを入れる場合は、App Storeで `Xcode` を検索してインストールします。Homebrewで `mas` を導入済みの場合は、CLIからApp Storeページを開くこともできます。
+
+```bash
+mas open 497799835
+```
+
+### 2. FlutterのmacOSデバイス確認
+
+macOSデスクトップが無効な環境では、初回のみ以下を実行してください。
+
+```bash
+flutter config --enable-macos-desktop
+```
+
+次に依存関係を取得し、macOSデバイスが見えることを確認します。
+
+```bash
+flutter pub get
+flutter devices
+```
+
+`flutter devices` に `macOS (desktop) • macos` が表示されれば準備完了です。
+
+### 3. デバッグ起動
+
+ターミナルから実行する場合:
+
+```bash
+flutter run -d macos
+```
+
+起動に成功すると、`build/macos/Build/Products/Debug/flutter_photo_collage_app.app` が生成され、Dart VM ServiceとFlutter DevToolsのURLが表示されます。
+
+### 4. 生成済みアプリを通常起動
+
+```bash
+open build/macos/Build/Products/Debug/flutter_photo_collage_app.app
+```
+
+写真の読み込み、JPEG書き出し、プロジェクト保存はmacOSのファイル選択ダイアログ経由で行います。macOSアプリのサンドボックス設定には、ユーザーが選択したファイル/フォルダへの読み書き権限を追加しています。
