@@ -83,7 +83,8 @@ class _HomeScreenState extends State<HomeScreen> {
       body: pages[_selectedIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        onDestinationSelected: (index) =>
+            setState(() => _selectedIndex = index),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.filter_frames_outlined),
@@ -125,7 +126,7 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
   double? _sourceAspectRatio;
   int? _sourceLongSide;
   PhotoMetadata _metadata = const PhotoMetadata();
-  ExportSettings _export = const ExportSettings();
+  ExportSettings _export = const ExportSettings(longSide: 4000);
   FrameSettings _frame = const FrameSettings();
   String _status = '';
   String? _previewError;
@@ -546,7 +547,8 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
                   TextPlacement.image: 'On Image',
                 },
                 onChanged: (value) {
-                  setState(() => _frame = _frame.copyWith(textPlacement: value));
+                  setState(
+                      () => _frame = _frame.copyWith(textPlacement: value));
                   _schedulePreviewRefresh();
                 },
               ),
@@ -601,13 +603,16 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
               },
             ),
             SliderField(
-              label: 'Right Frame',
-              value: _frame.rightFrameWidth,
+              label: 'Side Frame',
+              value: (_frame.leftFrameWidth + _frame.rightFrameWidth) / 2,
               min: 0,
               max: 600,
               onChanged: (value) {
                 setState(() {
-                  _frame = _frame.copyWith(rightFrameWidth: value);
+                  _frame = _frame.copyWith(
+                    leftFrameWidth: value,
+                    rightFrameWidth: value,
+                  );
                 });
                 _schedulePreviewRefresh();
               },
@@ -623,18 +628,6 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
                     bottomFrameWidth: value,
                     bottomPanelHeight: value,
                   );
-                });
-                _schedulePreviewRefresh();
-              },
-            ),
-            SliderField(
-              label: 'Left Frame',
-              value: _frame.leftFrameWidth,
-              min: 0,
-              max: 600,
-              onChanged: (value) {
-                setState(() {
-                  _frame = _frame.copyWith(leftFrameWidth: value);
                 });
                 _schedulePreviewRefresh();
               },
@@ -752,7 +745,7 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
   final _uuid = const Uuid();
 
   List<File> _imageFiles = const [];
-  ExportSettings _export = const ExportSettings();
+  ExportSettings _export = const ExportSettings(longSide: 4000);
   CollageSettings _collage = const CollageSettings();
   bool _busy = false;
   String _status = '';
@@ -996,7 +989,8 @@ class _ProjectOpenPageState extends State<ProjectOpenPage> {
         padding: const EdgeInsets.all(16),
         children: [
           if (document != null) ...[
-            Text(document.name, style: Theme.of(context).textTheme.headlineSmall),
+            Text(document.name,
+                style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 8),
             Text('Type: ${document.kind.name}'),
             Text('Updated: ${document.updatedAt}'),
@@ -1459,9 +1453,8 @@ class OutputImagePreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageBytes = bytes;
-    final safeAspectRatio = aspectRatio.isFinite && aspectRatio > 0
-        ? aspectRatio
-        : 1.0;
+    final safeAspectRatio =
+        aspectRatio.isFinite && aspectRatio > 0 ? aspectRatio : 1.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
