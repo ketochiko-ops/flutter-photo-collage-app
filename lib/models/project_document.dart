@@ -79,10 +79,10 @@ class FrameSettings {
     this.backgroundColor = 0xFFFFFFFF,
     this.borderWidth = 64,
     this.topFrameWidth = 64,
-    this.rightFrameWidth = 64,
-    this.bottomFrameWidth = 220,
-    this.leftFrameWidth = 64,
-    this.bottomPanelHeight = 220,
+    this.rightFrameWidth = 20,
+    this.bottomFrameWidth = 250,
+    this.leftFrameWidth = 20,
+    this.bottomPanelHeight = 250,
     this.imagePadding = 24,
     this.textStyle = const TextStyleSettings(),
     this.textHorizontalAlignment = TextHorizontalAlignment.left,
@@ -133,7 +133,8 @@ class FrameSettings {
       textStyle: textStyle ?? this.textStyle,
       textHorizontalAlignment:
           textHorizontalAlignment ?? this.textHorizontalAlignment,
-      textVerticalAlignment: textVerticalAlignment ?? this.textVerticalAlignment,
+      textVerticalAlignment:
+          textVerticalAlignment ?? this.textVerticalAlignment,
       textPlacement: textPlacement ?? this.textPlacement,
     );
   }
@@ -155,23 +156,25 @@ class FrameSettings {
       };
 
   factory FrameSettings.fromJson(Map<String, dynamic> json) {
-    final legacyBorderWidth = (json['borderWidth'] as num?)?.toDouble() ?? 64;
+    final legacyBorderWidth = (json['borderWidth'] as num?)?.toDouble();
     final legacyBottomPanelHeight =
-        (json['bottomPanelHeight'] as num?)?.toDouble() ?? 220;
+        (json['bottomPanelHeight'] as num?)?.toDouble() ?? 250;
 
     return FrameSettings(
       borderColor: json['borderColor'] as int? ?? 0xFFFFFFFF,
       backgroundColor: json['backgroundColor'] as int? ?? 0xFFFFFFFF,
-      borderWidth: legacyBorderWidth,
-      topFrameWidth:
-          (json['topFrameWidth'] as num?)?.toDouble() ?? legacyBorderWidth,
-      rightFrameWidth:
-          (json['rightFrameWidth'] as num?)?.toDouble() ?? legacyBorderWidth,
-      bottomFrameWidth:
-          (json['bottomFrameWidth'] as num?)?.toDouble() ??
-              legacyBottomPanelHeight,
-      leftFrameWidth:
-          (json['leftFrameWidth'] as num?)?.toDouble() ?? legacyBorderWidth,
+      borderWidth: legacyBorderWidth ?? 64,
+      topFrameWidth: (json['topFrameWidth'] as num?)?.toDouble() ??
+          legacyBorderWidth ??
+          64,
+      rightFrameWidth: (json['rightFrameWidth'] as num?)?.toDouble() ??
+          legacyBorderWidth ??
+          20,
+      bottomFrameWidth: (json['bottomFrameWidth'] as num?)?.toDouble() ??
+          legacyBottomPanelHeight,
+      leftFrameWidth: (json['leftFrameWidth'] as num?)?.toDouble() ??
+          legacyBorderWidth ??
+          20,
       bottomPanelHeight: legacyBottomPanelHeight,
       imagePadding: (json['imagePadding'] as num?)?.toDouble() ?? 24,
       textStyle: TextStyleSettings.fromJson(

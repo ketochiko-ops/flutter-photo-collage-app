@@ -70,7 +70,8 @@ void main() {
         jpegQuality: 88,
       );
 
-      expect(ExportSettings.fromJson(settings.toJson()).toJson(), settings.toJson());
+      expect(ExportSettings.fromJson(settings.toJson()).toJson(),
+          settings.toJson());
     });
 
     test('restores long side from legacy width and height json', () {
@@ -106,6 +107,15 @@ void main() {
   });
 
   group('ProjectDocument', () {
+    test('uses requested default frame widths', () {
+      const settings = FrameSettings();
+
+      expect(settings.leftFrameWidth, 20);
+      expect(settings.rightFrameWidth, 20);
+      expect(settings.bottomFrameWidth, 250);
+      expect(settings.bottomPanelHeight, 250);
+    });
+
     // プロジェクト情報、使用画像、撮影情報、書き出し設定がJSONから復元されることを確認します。
     test('round-trips project json', () {
       final now = DateTime.utc(2026, 7, 7, 1, 2, 3);

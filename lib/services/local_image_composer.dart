@@ -25,7 +25,7 @@ class LocalImageComposer {
     required FrameSettings frameSettings,
   }) async {
     final image = await _decodeUiImage(await imageFile.readAsBytes());
-    final size = _resolveFrameCanvasSize(image, exportSettings);
+    final size = _resolveFrameCanvasSize(image, exportSettings, frameSettings);
     final picture = ui.PictureRecorder();
     final canvas = Canvas(picture);
 
@@ -88,18 +88,40 @@ class LocalImageComposer {
     return _encodeJpegUnderTarget(rendered, exportSettings);
   }
 
-  Size _resolveFrameCanvasSize(ui.Image image, ExportSettings settings) {
+  Size _resolveFrameCanvasSize(
+    ui.Image image,
+    ExportSettings settings,
+    FrameSettings frameSettings,
+  ) {
     final sourceWidth = image.width.toDouble();
     final sourceHeight = image.height.toDouble();
+    final sourceAspectRatio = sourceWidth / sourceHeight;
+    final horizontalFrame =
+        frameSettings.leftFrameWidth + frameSettings.rightFrameWidth;
+    final verticalFrame =
+        frameSettings.topFrameWidth + frameSettings.bottomFrameWidth;
     final requestedLongSide = settings.longSide;
     if (requestedLongSide == null || requestedLongSide <= 0) {
-      return Size(sourceWidth, sourceHeight);
+      return Size(
+        math.max(1.0, sourceWidth + horizontalFrame),
+        math.max(1.0, sourceHeight + verticalFrame),
+      );
     }
 
-    final scale = requestedLongSide / math.max(sourceWidth, sourceHeight);
+    final longSide = requestedLongSide.toDouble();
+    final sizeFromFixedWidth = Size(
+      longSide,
+      math.max(1.0, (longSide - horizontalFrame) / sourceAspectRatio) +
+          verticalFrame,
+    );
+    if (sizeFromFixedWidth.height <= longSide) {
+      return sizeFromFixedWidth;
+    }
+
     return Size(
-      math.max(1.0, sourceWidth * scale),
-      math.max(1.0, sourceHeight * scale),
+      math.max(1.0, (longSide - verticalFrame) * sourceAspectRatio) +
+          horizontalFrame,
+      longSide,
     );
   }
 
@@ -147,14 +169,16 @@ class LocalImageComposer {
           size.width - settings.leftFrameWidth - settings.rightFrameWidth,
           settings.bottomFrameWidth,
         ),
-      TextPlacement.image => (Offset.zero & size).deflate(settings.imagePadding),
+      TextPlacement.image =>
+        (Offset.zero & size).deflate(settings.imagePadding),
     };
     if (panel.width <= 0 || panel.height <= 0) {
       return;
     }
     final textColor = Color(settings.textStyle.textColor);
-    final fontFamily =
-        settings.textStyle.fontFamily == 'System' ? null : settings.textStyle.fontFamily;
+    final fontFamily = settings.textStyle.fontFamily == 'System'
+        ? null
+        : settings.textStyle.fontFamily;
 
     final children = <InlineSpan>[
       TextSpan(
@@ -178,7 +202,8 @@ class LocalImageComposer {
 
     final dy = switch (settings.textVerticalAlignment) {
       TextVerticalAlignment.top => panel.top,
-      TextVerticalAlignment.center => panel.top + (panel.height - painter.height) / 2,
+      TextVerticalAlignment.center =>
+        panel.top + (panel.height - painter.height) / 2,
       TextVerticalAlignment.bottom => panel.bottom - painter.height,
     };
     painter.paint(canvas, Offset(panel.left, dy));
@@ -229,7 +254,8 @@ class LocalImageComposer {
     canvas.drawImageRect(image, inputSubrect, outputSubrect, Paint());
   }
 
-  Future<image_lib.Image> _renderPicture(ui.PictureRecorder picture, Size size) async {
+  Future<image_lib.Image> _renderPicture(
+      ui.PictureRecorder picture, Size size) async {
     final uiImage = await picture
         .endRecording()
         .toImage(size.width.round(), size.height.round());
