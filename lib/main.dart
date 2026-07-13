@@ -417,6 +417,7 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
       imagePadding: _frame.imagePadding * scale,
       textStyle: _frame.textStyle.copyWith(
         fontSize: _frame.textStyle.fontSize * scale,
+        detailFontSize: _frame.textStyle.detailFontSize * scale,
       ),
     );
   }
@@ -634,14 +635,30 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
             ),
           ],
           SliderField(
-            label: 'Font Size',
+            label: 'Camera/Lens Size',
             value: _frame.textStyle.fontSize,
             min: 18,
-            max: 96,
+            max: 140,
             onChanged: (value) {
               setState(() {
                 _frame = _frame.copyWith(
                   textStyle: _frame.textStyle.copyWith(fontSize: value),
+                );
+              });
+              _schedulePreviewRefresh();
+            },
+          ),
+          SliderField(
+            label: 'Other Text Size',
+            value: _frame.textStyle.detailFontSize,
+            min: 18,
+            max: 140,
+            onChanged: (value) {
+              setState(() {
+                _frame = _frame.copyWith(
+                  textStyle: _frame.textStyle.copyWith(
+                    detailFontSize: value,
+                  ),
                 );
               });
               _schedulePreviewRefresh();
@@ -1211,15 +1228,14 @@ class _SliderFieldState extends State<SliderField> {
   void _commitText(String text) {
     final parsed = double.tryParse(text);
     if (parsed == null) {
+      _controller.text = _formatValue(widget.value);
       return;
     }
     final normalized = widget.integer ? parsed.roundToDouble() : parsed;
     final clamped = normalized.clamp(widget.min, widget.max).toDouble();
     _lastValue = clamped;
+    _controller.text = _formatValue(clamped);
     widget.onChanged(clamped);
-    if (clamped != parsed) {
-      _controller.text = _formatValue(clamped);
-    }
   }
 
   void _handleSliderChanged(double value) {
@@ -1248,8 +1264,15 @@ class _SliderFieldState extends State<SliderField> {
           child: TextField(
             controller: _controller,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            onChanged: _commitText,
             onSubmitted: _commitText,
+            onEditingComplete: () {
+              _commitText(_controller.text);
+              FocusScope.of(context).unfocus();
+            },
+            onTapOutside: (_) {
+              _commitText(_controller.text);
+              FocusScope.of(context).unfocus();
+            },
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               isDense: true,

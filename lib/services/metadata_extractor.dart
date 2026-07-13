@@ -36,17 +36,57 @@ class MetadataExtractor {
   }
 
   String _normalizeFocalLength(String value) {
-    if (value.isEmpty || value.toLowerCase().contains('mm')) {
-      return value;
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return trimmed;
     }
-    return '$value mm';
+    final withoutUnit = trimmed.replaceAll(
+      RegExp(r'\s*mm$', caseSensitive: false),
+      '',
+    );
+    final number = _parseNumber(withoutUnit);
+    if (number == null) {
+      return trimmed.toLowerCase().contains('mm') ? trimmed : '$trimmed mm';
+    }
+    return '${_formatNumber(number)} mm';
   }
 
   String _normalizeAperture(String value) {
-    if (value.isEmpty || value.toLowerCase().startsWith('f')) {
-      return value;
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return trimmed;
     }
-    return 'f/$value';
+    final withoutPrefix = trimmed.replaceFirst(
+      RegExp(r'^f/?', caseSensitive: false),
+      '',
+    );
+    final number = _parseNumber(withoutPrefix);
+    if (number == null) {
+      return trimmed.toLowerCase().startsWith('f') ? trimmed : 'f/$trimmed';
+    }
+    return 'f/${_formatNumber(number)}';
+  }
+
+  double? _parseNumber(String value) {
+    final trimmed = value.trim();
+    final fractionMatch = RegExp(r'^(-?\d+(?:\.\d+)?)/(-?\d+(?:\.\d+)?)$')
+        .firstMatch(trimmed);
+    if (fractionMatch != null) {
+      final numerator = double.tryParse(fractionMatch.group(1)!);
+      final denominator = double.tryParse(fractionMatch.group(2)!);
+      if (numerator == null || denominator == null || denominator == 0) {
+        return null;
+      }
+      return numerator / denominator;
+    }
+    return double.tryParse(trimmed);
+  }
+
+  String _formatNumber(double value) {
+    if (value == value.roundToDouble()) {
+      return value.round().toString();
+    }
+    return value.toStringAsFixed(1).replaceFirst(RegExp(r'\.?0+$'), '');
   }
 }
 

@@ -113,10 +113,11 @@ void main() {
       expect(settings.leftFrameWidth, 100);
       expect(settings.rightFrameWidth, 100);
       expect(settings.topFrameWidth, 100);
-      expect(settings.bottomFrameWidth, 250);
-      expect(settings.bottomPanelHeight, 250);
+      expect(settings.bottomFrameWidth, 350);
+      expect(settings.bottomPanelHeight, 350);
       expect(settings.backgroundColor, 0xFF000000);
-      expect(settings.textStyle.fontSize, 70);
+      expect(settings.textStyle.fontSize, 90);
+      expect(settings.textStyle.detailFontSize, 60);
       expect(settings.textStyle.textColor, 0xFFFFFFFF);
       expect(
         settings.textHorizontalAlignment,
@@ -169,6 +170,10 @@ void main() {
 
     test('round-trips text placement settings', () {
       const settings = FrameSettings(
+        textStyle: TextStyleSettings(
+          fontSize: 80,
+          detailFontSize: 52,
+        ),
         textHorizontalAlignment: TextHorizontalAlignment.right,
         textVerticalAlignment: TextVerticalAlignment.top,
         textPlacement: TextPlacement.image,
@@ -176,9 +181,31 @@ void main() {
 
       final restored = FrameSettings.fromJson(settings.toJson());
 
+      expect(restored.textStyle.fontSize, 80);
+      expect(restored.textStyle.detailFontSize, 52);
       expect(restored.textHorizontalAlignment, TextHorizontalAlignment.right);
       expect(restored.textVerticalAlignment, TextVerticalAlignment.top);
       expect(restored.textPlacement, TextPlacement.image);
+    });
+
+    test('uses equipment font size for legacy detail font size', () {
+      final settings = FrameSettings.fromJson(const {
+        'textStyle': {
+          'fontSize': 64,
+        },
+      });
+
+      expect(settings.textStyle.fontSize, 64);
+      expect(settings.textStyle.detailFontSize, 64);
+    });
+
+    test('uses split font size defaults from empty text style json', () {
+      final settings = FrameSettings.fromJson(const {
+        'textStyle': {},
+      });
+
+      expect(settings.textStyle.fontSize, 90);
+      expect(settings.textStyle.detailFontSize, 60);
     });
   });
 }

@@ -38,22 +38,26 @@ class ProjectAsset {
 class TextStyleSettings {
   const TextStyleSettings({
     this.fontFamily = 'System',
-    this.fontSize = 70,
+    this.fontSize = 90,
+    this.detailFontSize = 60,
     this.textColor = 0xFFFFFFFF,
   });
 
   final String fontFamily;
   final double fontSize;
+  final double detailFontSize;
   final int textColor;
 
   TextStyleSettings copyWith({
     String? fontFamily,
     double? fontSize,
+    double? detailFontSize,
     int? textColor,
   }) {
     return TextStyleSettings(
       fontFamily: fontFamily ?? this.fontFamily,
       fontSize: fontSize ?? this.fontSize,
+      detailFontSize: detailFontSize ?? this.detailFontSize,
       textColor: textColor ?? this.textColor,
     );
   }
@@ -61,13 +65,18 @@ class TextStyleSettings {
   Map<String, dynamic> toJson() => {
         'fontFamily': fontFamily,
         'fontSize': fontSize,
+        'detailFontSize': detailFontSize,
         'textColor': textColor,
       };
 
   factory TextStyleSettings.fromJson(Map<String, dynamic> json) {
+    final hasLegacyFontSize = json.containsKey('fontSize');
+    final fontSize = (json['fontSize'] as num?)?.toDouble() ?? 90;
     return TextStyleSettings(
       fontFamily: json['fontFamily'] as String? ?? 'System',
-      fontSize: (json['fontSize'] as num?)?.toDouble() ?? 70,
+      fontSize: fontSize,
+      detailFontSize: (json['detailFontSize'] as num?)?.toDouble() ??
+          (hasLegacyFontSize ? fontSize : 60),
       textColor: json['textColor'] as int? ?? 0xFFFFFFFF,
     );
   }
@@ -80,9 +89,9 @@ class FrameSettings {
     this.borderWidth = 64,
     this.topFrameWidth = 100,
     this.rightFrameWidth = 100,
-    this.bottomFrameWidth = 250,
+    this.bottomFrameWidth = 350,
     this.leftFrameWidth = 100,
-    this.bottomPanelHeight = 250,
+    this.bottomPanelHeight = 350,
     this.imagePadding = 24,
     this.textStyle = const TextStyleSettings(),
     this.textHorizontalAlignment = TextHorizontalAlignment.center,
@@ -158,7 +167,7 @@ class FrameSettings {
   factory FrameSettings.fromJson(Map<String, dynamic> json) {
     final legacyBorderWidth = (json['borderWidth'] as num?)?.toDouble();
     final legacyBottomPanelHeight =
-        (json['bottomPanelHeight'] as num?)?.toDouble() ?? 250;
+        (json['bottomPanelHeight'] as num?)?.toDouble() ?? 350;
 
     return FrameSettings(
       borderColor: json['borderColor'] as int? ?? 0xFF000000,

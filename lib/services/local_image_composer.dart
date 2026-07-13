@@ -180,17 +180,24 @@ class LocalImageComposer {
         ? null
         : settings.textStyle.fontFamily;
 
-    final children = <InlineSpan>[
-      TextSpan(
-        text: metadata.displayParts.join(' '),
-        style: TextStyle(
-          color: textColor,
-          fontFamily: fontFamily,
-          fontSize: settings.textStyle.fontSize,
-          height: 1.24,
-        ),
+    final children = _metadataSpans(
+      metadata,
+      TextStyle(
+        color: textColor,
+        fontFamily: fontFamily,
+        fontSize: settings.textStyle.fontSize,
+        height: 1.24,
       ),
-    ];
+      TextStyle(
+        color: textColor,
+        fontFamily: fontFamily,
+        fontSize: settings.textStyle.detailFontSize,
+        height: 1.24,
+      ),
+    );
+    if (children.isEmpty) {
+      return;
+    }
 
     final painter = TextPainter(
       text: TextSpan(children: children),
@@ -207,6 +214,45 @@ class LocalImageComposer {
       TextVerticalAlignment.bottom => panel.bottom - painter.height,
     };
     painter.paint(canvas, Offset(panel.left, dy));
+  }
+
+  List<InlineSpan> _metadataSpans(
+    PhotoMetadata metadata,
+    TextStyle equipmentStyle,
+    TextStyle detailStyle,
+  ) {
+    const equipmentSeparator = '    ';
+    const detailSeparator = '  ';
+    final spans = <InlineSpan>[];
+    var previousWasDetail = false;
+
+    void addPart(String value, TextStyle style, {required bool isDetail}) {
+      final text = value.trim();
+      if (text.isEmpty) {
+        return;
+      }
+      if (spans.isNotEmpty) {
+        spans.add(TextSpan(
+          text: previousWasDetail && isDetail
+              ? detailSeparator
+              : equipmentSeparator,
+          style: detailStyle,
+        ));
+      }
+      spans.add(TextSpan(text: text, style: style));
+      previousWasDetail = isDetail;
+    }
+
+    addPart(metadata.camera, equipmentStyle, isDetail: false);
+    addPart(metadata.lens, equipmentStyle, isDetail: false);
+    addPart(metadata.focalLength, detailStyle, isDetail: true);
+    addPart(metadata.aperture, detailStyle, isDetail: true);
+    addPart(metadata.shutterSpeed, detailStyle, isDetail: true);
+    if (metadata.iso.trim().isNotEmpty) {
+      addPart('ISO ${metadata.iso.trim()}', detailStyle, isDetail: true);
+    }
+
+    return spans;
   }
 
   TextAlign _textAlign(TextHorizontalAlignment alignment) {
