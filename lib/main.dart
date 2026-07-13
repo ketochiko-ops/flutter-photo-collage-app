@@ -762,10 +762,21 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
   final _uuid = const Uuid();
 
   List<File> _imageFiles = const [];
+  Uint8List? _previewBytes;
   ExportSettings _export = const ExportSettings(longSide: 4000);
   CollageSettings _collage = const CollageSettings();
+  String? _previewError;
   bool _busy = false;
+  bool _previewing = false;
+  int _previewVersion = 0;
+  Timer? _previewDebounce;
   String _status = '';
+
+  @override
+  void dispose() {
+    _previewDebounce?.cancel();
+    super.dispose();
+  }
 
   Future<void> _selectImages() async {
     final files = await openFiles(acceptedTypeGroups: _imageTypes);
@@ -773,6 +784,30 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
       _imageFiles = files.map((file) => File(file.path)).toList();
       _status = '${_imageFiles.length}枚の画像を選択しました。';
     });
+    await _refreshPreview();
+  }
+
+  Future<void> _removeImageAt(int index) async {
+    if (index < 0 || index >= _imageFiles.length) {
+      return;
+    }
+    _previewDebounce?.cancel();
+    _previewVersion++;
+    setState(() {
+      _imageFiles = [
+        ..._imageFiles.take(index),
+        ..._imageFiles.skip(index + 1),
+      ];
+      _status = '${_imageFiles.length} selected images.';
+      if (_imageFiles.isEmpty) {
+        _previewBytes = null;
+        _previewError = null;
+        _previewing = false;
+      }
+    });
+    if (_imageFiles.isNotEmpty) {
+      await _refreshPreview();
+    }
   }
 
   Future<void> _exportJpeg() async {
@@ -841,6 +876,77 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
     }
   }
 
+  void _schedulePreviewRefresh() {
+    if (_imageFiles.isEmpty) {
+      return;
+    }
+    _previewDebounce?.cancel();
+    _previewDebounce = Timer(
+      const Duration(milliseconds: 350),
+      () {
+        if (mounted) {
+          _refreshPreview();
+        }
+      },
+    );
+  }
+
+  Future<void> _refreshPreview() async {
+    if (_imageFiles.isEmpty) {
+      setState(() {
+        _previewBytes = null;
+        _previewError = null;
+        _previewing = false;
+      });
+      return;
+    }
+    if (!_export.hasValidSize) {
+      setState(() {
+        _previewError = 'Long side must be blank or greater than 0.';
+        _previewing = false;
+      });
+      return;
+    }
+
+    final version = ++_previewVersion;
+    setState(() {
+      _previewing = true;
+      _previewError = null;
+    });
+
+    try {
+      final bytes = await _composer.composeCollageJpeg(
+        imageFiles: _imageFiles,
+        exportSettings: _previewExportSettings(),
+        collageSettings: _collage,
+      );
+      if (!mounted || version != _previewVersion) {
+        return;
+      }
+      setState(() => _previewBytes = bytes);
+    } catch (error) {
+      if (!mounted || version != _previewVersion) {
+        return;
+      }
+      setState(() => _previewError = error.toString());
+    } finally {
+      if (mounted && version == _previewVersion) {
+        setState(() => _previewing = false);
+      }
+    }
+  }
+
+  ExportSettings _previewExportSettings() {
+    const maxPreviewSide = 1200;
+    final requestedLongSide = _export.longSide;
+    return ExportSettings(
+      longSide: requestedLongSide == null
+          ? maxPreviewSide
+          : math.min(requestedLongSide, maxPreviewSide),
+      jpegQuality: 86,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return EditorScaffold(
@@ -866,11 +972,29 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          SelectedFilesPreview(files: _imageFiles),
+          OutputImagePreview(
+            bytes: _previewBytes,
+            fileName: _imageFiles.isEmpty
+                ? null
+                : '${_imageFiles.length} selected images',
+            aspectRatio: 1,
+            loading: _previewing,
+            error: _previewError,
+          ),
+          const SizedBox(height: 16),
+          SelectedFilesPreview(
+            files: _imageFiles,
+            onRemove: (index) {
+              unawaited(_removeImageAt(index));
+            },
+          ),
           const SizedBox(height: 16),
           ExportControls(
             settings: _export,
-            onChanged: (settings) => setState(() => _export = settings),
+            onChanged: (settings) {
+              setState(() => _export = settings);
+              _schedulePreviewRefresh();
+            },
           ),
           SliderField(
             label: 'Columns',
@@ -883,6 +1007,7 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
               setState(() {
                 _collage = _collage.copyWith(columns: value.round());
               });
+              _schedulePreviewRefresh();
             },
           ),
           SliderField(
@@ -894,6 +1019,7 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
               setState(() {
                 _collage = _collage.copyWith(gutter: value);
               });
+              _schedulePreviewRefresh();
             },
           ),
         ],
@@ -1544,9 +1670,14 @@ class OutputImagePreview extends StatelessWidget {
 }
 
 class SelectedFilesPreview extends StatelessWidget {
-  const SelectedFilesPreview({required this.files, super.key});
+  const SelectedFilesPreview({
+    required this.files,
+    this.onRemove,
+    super.key,
+  });
 
   final List<File> files;
+  final ValueChanged<int>? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -1556,34 +1687,61 @@ class SelectedFilesPreview extends StatelessWidget {
         child: Center(child: Text('No image selected')),
       );
     }
+    final visibleFiles = files.take(12).toList();
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: files
-          .take(12)
+      children: visibleFiles
+          .asMap()
+          .entries
           .map(
-            (file) => SizedBox(
+            (entry) => SizedBox(
               width: 150,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   AspectRatio(
                     aspectRatio: 1,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: Image.file(
-                        file,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const ColoredBox(
-                          color: Color(0xFFE8ECEF),
-                          child: Icon(Icons.broken_image_outlined),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.file(
+                            entry.value,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const ColoredBox(
+                              color: Color(0xFFE8ECEF),
+                              child: Icon(Icons.broken_image_outlined),
+                            ),
+                          ),
                         ),
-                      ),
+                        if (onRemove != null)
+                          Positioned(
+                            top: 6,
+                            right: 6,
+                            child: Tooltip(
+                              message: 'Remove image',
+                              child: IconButton.filledTonal(
+                                onPressed: () => onRemove!(entry.key),
+                                icon: const Icon(Icons.close),
+                                iconSize: 18,
+                                style: IconButton.styleFrom(
+                                  fixedSize: const Size.square(32),
+                                  minimumSize: const Size.square(32),
+                                  padding: EdgeInsets.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    p.basename(file.path),
+                    p.basename(entry.value.path),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall,
