@@ -223,9 +223,9 @@ T _enumValue<T extends Enum>(List<T> values, String? name, T fallback) {
 class CollageSettings {
   const CollageSettings({
     this.columns = 2,
-    this.gutter = 24,
+    this.gutter = 10,
     this.aspectRatio = 1,
-    this.backgroundColor = 0xFFFFFFFF,
+    this.backgroundColor = 0xFF000000,
   });
 
   final int columns;
@@ -257,9 +257,9 @@ class CollageSettings {
   factory CollageSettings.fromJson(Map<String, dynamic> json) {
     return CollageSettings(
       columns: json['columns'] as int? ?? 2,
-      gutter: (json['gutter'] as num?)?.toDouble() ?? 24,
+      gutter: (json['gutter'] as num?)?.toDouble() ?? 10,
       aspectRatio: (json['aspectRatio'] as num?)?.toDouble() ?? 1,
-      backgroundColor: json['backgroundColor'] as int? ?? 0xFFFFFFFF,
+      backgroundColor: json['backgroundColor'] as int? ?? 0xFF000000,
     );
   }
 }

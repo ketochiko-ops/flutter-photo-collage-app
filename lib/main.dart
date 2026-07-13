@@ -787,6 +787,27 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
     await _refreshPreview();
   }
 
+  Future<void> _addImages() async {
+    final files = await openFiles(acceptedTypeGroups: _imageTypes);
+    if (files.isEmpty) {
+      return;
+    }
+    final existingPaths = _imageFiles.map((file) => file.path).toSet();
+    final additions = files
+        .map((file) => File(file.path))
+        .where((file) => existingPaths.add(file.path))
+        .toList();
+    if (additions.isEmpty) {
+      setState(() => _status = 'No new images added.');
+      return;
+    }
+    setState(() {
+      _imageFiles = [..._imageFiles, ...additions];
+      _status = '${additions.length} images added.';
+    });
+    await _refreshPreview();
+  }
+
   Future<void> _removeImageAt(int index) async {
     if (index < 0 || index >= _imageFiles.length) {
       return;
@@ -979,6 +1000,11 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
           icon: const Icon(Icons.photo_library_outlined),
           label: const Text('Select Images'),
         ),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : _addImages,
+          icon: const Icon(Icons.add_photo_alternate_outlined),
+          label: const Text('Add Images'),
+        ),
         FilledButton.icon(
           onPressed: _busy ? null : _exportJpeg,
           icon: const Icon(Icons.save_alt_outlined),
@@ -993,6 +1019,28 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Material(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'サイズが大きい画像、または読み込み枚数が多いと動作が不安定になります',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           OutputImagePreview(
             bytes: _previewBytes,
             fileName: _imageFiles.isEmpty
@@ -1020,19 +1068,33 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
               _schedulePreviewRefresh();
             },
           ),
+          const SizedBox(height: 16),
           SegmentedField<double>(
             label: 'Aspect Ratio',
             value: _collage.aspectRatio,
             options: {
               1.0: '1:1',
+              1.25: '5:4',
               0.8: '4:5',
               1.5: '3:2',
+              0.6666666666666666: '2:3',
               1.7777777777777777: '16:9',
               0.5625: '9:16',
             },
             onChanged: (value) {
               setState(() {
                 _collage = _collage.copyWith(aspectRatio: value);
+              });
+              _schedulePreviewRefresh();
+            },
+          ),
+          const SizedBox(height: 16),
+          ColorSwatchField(
+            label: 'Background',
+            value: _collage.backgroundColor,
+            onChanged: (color) {
+              setState(() {
+                _collage = _collage.copyWith(backgroundColor: color);
               });
               _schedulePreviewRefresh();
             },

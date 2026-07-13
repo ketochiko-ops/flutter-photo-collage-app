@@ -107,6 +107,15 @@ void main() {
   });
 
   group('ProjectDocument', () {
+    test('uses requested default collage settings', () {
+      const settings = CollageSettings();
+
+      expect(settings.columns, 2);
+      expect(settings.gutter, 10);
+      expect(settings.aspectRatio, 1);
+      expect(settings.backgroundColor, 0xFF000000);
+    });
+
     test('round-trips collage aspect ratio settings', () {
       const settings = CollageSettings(
         columns: 3,
