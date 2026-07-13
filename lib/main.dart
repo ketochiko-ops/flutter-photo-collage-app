@@ -1457,37 +1457,42 @@ class OutputImagePreview extends StatelessWidget {
         aspectRatio.isFinite && aspectRatio > 0 ? aspectRatio : 1.0;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 520),
-          child: AspectRatio(
-            aspectRatio: safeAspectRatio,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border.all(color: Theme.of(context).dividerColor),
-                color: const Color(0xFFF4F6F8),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (imageBytes == null)
-                      const Center(child: Text('No image selected'))
-                    else
-                      Image.memory(imageBytes, fit: BoxFit.contain),
-                    if (loading)
-                      const ColoredBox(
-                        color: Color(0x66FFFFFF),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                  ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const maxPreviewHeight = 520.0;
+            final maxWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : maxPreviewHeight * safeAspectRatio;
+            final previewWidth =
+                math.min(maxWidth, maxPreviewHeight * safeAspectRatio);
+            final previewHeight = previewWidth / safeAspectRatio;
+
+            return Align(
+              alignment: Alignment.center,
+              child: SizedBox(
+                width: previewWidth,
+                height: previewHeight,
+                child: ClipRect(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (imageBytes == null)
+                        const Center(child: Text('No image selected'))
+                      else
+                        Image.memory(imageBytes, fit: BoxFit.contain),
+                      if (loading)
+                        const ColoredBox(
+                          color: Color(0x66FFFFFF),
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
         if (fileName != null) ...[
           const SizedBox(height: 6),

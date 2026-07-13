@@ -110,10 +110,18 @@ void main() {
     test('uses requested default frame widths', () {
       const settings = FrameSettings();
 
-      expect(settings.leftFrameWidth, 20);
-      expect(settings.rightFrameWidth, 20);
+      expect(settings.leftFrameWidth, 100);
+      expect(settings.rightFrameWidth, 100);
+      expect(settings.topFrameWidth, 100);
       expect(settings.bottomFrameWidth, 250);
       expect(settings.bottomPanelHeight, 250);
+      expect(settings.backgroundColor, 0xFF000000);
+      expect(settings.textStyle.fontSize, 70);
+      expect(settings.textStyle.textColor, 0xFFFFFFFF);
+      expect(
+        settings.textHorizontalAlignment,
+        TextHorizontalAlignment.center,
+      );
     });
 
     // プロジェクト情報、使用画像、撮影情報、書き出し設定がJSONから復元されることを確認します。

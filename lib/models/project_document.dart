@@ -38,8 +38,8 @@ class ProjectAsset {
 class TextStyleSettings {
   const TextStyleSettings({
     this.fontFamily = 'System',
-    this.fontSize = 36,
-    this.textColor = 0xFF111111,
+    this.fontSize = 70,
+    this.textColor = 0xFFFFFFFF,
   });
 
   final String fontFamily;
@@ -67,25 +67,25 @@ class TextStyleSettings {
   factory TextStyleSettings.fromJson(Map<String, dynamic> json) {
     return TextStyleSettings(
       fontFamily: json['fontFamily'] as String? ?? 'System',
-      fontSize: (json['fontSize'] as num?)?.toDouble() ?? 36,
-      textColor: json['textColor'] as int? ?? 0xFF111111,
+      fontSize: (json['fontSize'] as num?)?.toDouble() ?? 70,
+      textColor: json['textColor'] as int? ?? 0xFFFFFFFF,
     );
   }
 }
 
 class FrameSettings {
   const FrameSettings({
-    this.borderColor = 0xFFFFFFFF,
-    this.backgroundColor = 0xFFFFFFFF,
+    this.borderColor = 0xFF000000,
+    this.backgroundColor = 0xFF000000,
     this.borderWidth = 64,
-    this.topFrameWidth = 64,
-    this.rightFrameWidth = 20,
+    this.topFrameWidth = 100,
+    this.rightFrameWidth = 100,
     this.bottomFrameWidth = 250,
-    this.leftFrameWidth = 20,
+    this.leftFrameWidth = 100,
     this.bottomPanelHeight = 250,
     this.imagePadding = 24,
     this.textStyle = const TextStyleSettings(),
-    this.textHorizontalAlignment = TextHorizontalAlignment.left,
+    this.textHorizontalAlignment = TextHorizontalAlignment.center,
     this.textVerticalAlignment = TextVerticalAlignment.center,
     this.textPlacement = TextPlacement.bottomFrame,
   });
@@ -161,20 +161,20 @@ class FrameSettings {
         (json['bottomPanelHeight'] as num?)?.toDouble() ?? 250;
 
     return FrameSettings(
-      borderColor: json['borderColor'] as int? ?? 0xFFFFFFFF,
-      backgroundColor: json['backgroundColor'] as int? ?? 0xFFFFFFFF,
+      borderColor: json['borderColor'] as int? ?? 0xFF000000,
+      backgroundColor: json['backgroundColor'] as int? ?? 0xFF000000,
       borderWidth: legacyBorderWidth ?? 64,
       topFrameWidth: (json['topFrameWidth'] as num?)?.toDouble() ??
           legacyBorderWidth ??
-          64,
+          100,
       rightFrameWidth: (json['rightFrameWidth'] as num?)?.toDouble() ??
           legacyBorderWidth ??
-          20,
+          100,
       bottomFrameWidth: (json['bottomFrameWidth'] as num?)?.toDouble() ??
           legacyBottomPanelHeight,
       leftFrameWidth: (json['leftFrameWidth'] as num?)?.toDouble() ??
           legacyBorderWidth ??
-          20,
+          100,
       bottomPanelHeight: legacyBottomPanelHeight,
       imagePadding: (json['imagePadding'] as num?)?.toDouble() ?? 24,
       textStyle: TextStyleSettings.fromJson(
@@ -183,7 +183,7 @@ class FrameSettings {
       textHorizontalAlignment: _enumValue(
         TextHorizontalAlignment.values,
         json['textHorizontalAlignment'] as String?,
-        TextHorizontalAlignment.left,
+        TextHorizontalAlignment.center,
       ),
       textVerticalAlignment: _enumValue(
         TextVerticalAlignment.values,
