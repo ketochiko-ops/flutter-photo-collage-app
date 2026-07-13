@@ -10,9 +10,11 @@ import 'package:image/image.dart' as image_lib;
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
+import 'models/app_preferences.dart';
 import 'models/export_settings.dart';
 import 'models/photo_metadata.dart';
 import 'models/project_document.dart';
+import 'services/app_preferences_repository.dart';
 import 'services/local_image_composer.dart';
 import 'services/metadata_extractor.dart';
 import 'services/project_repository.dart';
@@ -65,14 +67,56 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final _preferencesRepository = const AppPreferencesRepository();
+
   var _selectedIndex = 0;
+  AppPreferences _preferences = const AppPreferences();
+  var _defaultsRevision = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final preferences = await _preferencesRepository.load();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _preferences = preferences;
+      _defaultsRevision++;
+    });
+  }
+
+  Future<void> _savePreferences(AppPreferences preferences) async {
+    await _preferencesRepository.save(preferences);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _preferences = preferences;
+      _defaultsRevision++;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const FrameEditorPage(),
-      const CollageEditorPage(),
+      FrameEditorPage(
+        key: ValueKey('frame-$_defaultsRevision'),
+        preferences: _preferences,
+      ),
+      CollageEditorPage(
+        key: ValueKey('collage-$_defaultsRevision'),
+        preferences: _preferences,
+      ),
       const ProjectOpenPage(),
+      OptionsPage(
+        preferences: _preferences,
+        onSave: _savePreferences,
+      ),
     ];
 
     return Scaffold(
@@ -101,6 +145,11 @@ class _HomeScreenState extends State<HomeScreen> {
             selectedIcon: Icon(Icons.folder_open),
             label: 'Project',
           ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: 'Options',
+          ),
         ],
       ),
     );
@@ -108,7 +157,12 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class FrameEditorPage extends StatefulWidget {
-  const FrameEditorPage({super.key});
+  const FrameEditorPage({
+    required this.preferences,
+    super.key,
+  });
+
+  final AppPreferences preferences;
 
   @override
   State<FrameEditorPage> createState() => _FrameEditorPageState();
@@ -126,8 +180,8 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
   double? _sourceAspectRatio;
   int? _sourceLongSide;
   PhotoMetadata _metadata = const PhotoMetadata();
-  ExportSettings _export = const ExportSettings(longSide: 4000);
-  FrameSettings _frame = const FrameSettings();
+  late ExportSettings _export;
+  late FrameSettings _frame;
   String _status = '';
   String? _previewError;
   bool _busy = false;
@@ -149,6 +203,10 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
   @override
   void initState() {
     super.initState();
+    _export = widget.preferences.frameExportSettings;
+    _metadata = widget.preferences.frameMetadata;
+    _frame = widget.preferences.frameSettings;
+    _syncControllersFromMetadata();
     _loadFontFamilies();
   }
 
@@ -216,7 +274,7 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
       _imageFile = selected;
       _sourceAspectRatio = sourceAspectRatio;
       _sourceLongSide = sourceLongSide;
-      _metadata = extracted;
+      _metadata = _metadataWithDefaults(extracted);
       _syncControllersFromMetadata();
       _status = '画像を読み込みました: ${p.basename(selected.path)}';
     });
@@ -312,6 +370,23 @@ class _FrameEditorPageState extends State<FrameEditorPage> {
       aperture: _controllers['aperture']!.text,
       shutterSpeed: _controllers['shutter']!.text,
       iso: _controllers['iso']!.text,
+    );
+  }
+
+  PhotoMetadata _metadataWithDefaults(PhotoMetadata extracted) {
+    final defaults = widget.preferences.frameMetadata;
+    return PhotoMetadata(
+      camera: extracted.camera.isEmpty ? defaults.camera : extracted.camera,
+      lens: extracted.lens.isEmpty ? defaults.lens : extracted.lens,
+      focalLength: extracted.focalLength.isEmpty
+          ? defaults.focalLength
+          : extracted.focalLength,
+      aperture:
+          extracted.aperture.isEmpty ? defaults.aperture : extracted.aperture,
+      shutterSpeed: extracted.shutterSpeed.isEmpty
+          ? defaults.shutterSpeed
+          : extracted.shutterSpeed,
+      iso: extracted.iso.isEmpty ? defaults.iso : extracted.iso,
     );
   }
 
@@ -750,7 +825,12 @@ class FontFamilyDropdown extends StatelessWidget {
 }
 
 class CollageEditorPage extends StatefulWidget {
-  const CollageEditorPage({super.key});
+  const CollageEditorPage({
+    required this.preferences,
+    super.key,
+  });
+
+  final AppPreferences preferences;
 
   @override
   State<CollageEditorPage> createState() => _CollageEditorPageState();
@@ -763,14 +843,21 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
 
   List<File> _imageFiles = const [];
   Uint8List? _previewBytes;
-  ExportSettings _export = const ExportSettings(longSide: 4000);
-  CollageSettings _collage = const CollageSettings();
+  late ExportSettings _export;
+  late CollageSettings _collage;
   String? _previewError;
   bool _busy = false;
   bool _previewing = false;
   int _previewVersion = 0;
   Timer? _previewDebounce;
   String _status = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _export = widget.preferences.collageExportSettings;
+    _collage = widget.preferences.collageSettings;
+  }
 
   @override
   void dispose() {
@@ -1249,6 +1336,565 @@ class _ProjectOpenPageState extends State<ProjectOpenPage> {
   }
 }
 
+class OptionsPage extends StatefulWidget {
+  const OptionsPage({
+    required this.preferences,
+    required this.onSave,
+    super.key,
+  });
+
+  final AppPreferences preferences;
+  final Future<void> Function(AppPreferences preferences) onSave;
+
+  @override
+  State<OptionsPage> createState() => _OptionsPageState();
+}
+
+enum _OptionsSection {
+  frame,
+  collageDefaults,
+  about,
+  usage,
+  contact,
+}
+
+class _OptionsPageState extends State<OptionsPage> {
+  late AppPreferences _draft;
+  _OptionsSection? _section;
+  var _busy = false;
+  var _formVersion = 0;
+  var _status = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _draft = widget.preferences;
+  }
+
+  @override
+  void didUpdateWidget(OptionsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.preferences != widget.preferences && !_busy) {
+      _draft = widget.preferences;
+      _formVersion += 1;
+    }
+  }
+
+  Future<void> _save() async {
+    setState(() => _busy = true);
+    try {
+      await widget.onSave(_draft);
+      if (mounted) {
+        setState(() => _status = 'Default options saved.');
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _status = 'Error: $error');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  void _reset() {
+    setState(() {
+      _draft = const AppPreferences();
+      _formVersion += 1;
+      _status = '';
+    });
+  }
+
+  List<Widget> _backActions() {
+    return [
+      OutlinedButton.icon(
+        onPressed: _busy ? null : () => setState(() => _section = null),
+        icon: const Icon(Icons.arrow_back),
+        label: const Text('Back'),
+      ),
+    ];
+  }
+
+  List<Widget> _settingsActions() {
+    return [
+      ..._backActions(),
+      FilledButton.icon(
+        onPressed: _busy ? null : _save,
+        icon: const Icon(Icons.save_outlined),
+        label: const Text('Save Defaults'),
+      ),
+      OutlinedButton.icon(
+        onPressed: _busy ? null : _reset,
+        icon: const Icon(Icons.restart_alt),
+        label: const Text('Reset Draft'),
+      ),
+    ];
+  }
+
+  Widget _optionsList(BuildContext context) {
+    return EditorScaffold(
+      busy: _busy,
+      status: _status,
+      actions: const [],
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text('Options', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          _optionTile(
+            icon: Icons.filter_frames_outlined,
+            title: 'フレーム書き出し機能',
+            onTap: () => setState(() => _section = _OptionsSection.frame),
+          ),
+          _optionTile(
+            icon: Icons.grid_view_outlined,
+            title: 'コラージュ機能 デフォルト値設定',
+            onTap: () =>
+                setState(() => _section = _OptionsSection.collageDefaults),
+          ),
+          _optionTile(
+            icon: Icons.info_outline,
+            title: 'このアプリについて（アプリ概要・機能要件など）',
+            onTap: () => setState(() => _section = _OptionsSection.about),
+          ),
+          _optionTile(
+            icon: Icons.help_outline,
+            title: 'アプリの使い方について（使い方説明）',
+            onTap: () => setState(() => _section = _OptionsSection.usage),
+          ),
+          _optionTile(
+            icon: Icons.mail_outline,
+            title: 'お問い合わせ',
+            onTap: () => setState(() => _section = _OptionsSection.contact),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _optionTile({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _informationPage(
+    BuildContext context,
+    String title,
+    List<String> paragraphs,
+  ) {
+    return EditorScaffold(
+      busy: _busy,
+      status: _status,
+      actions: _backActions(),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          ...paragraphs.expand(
+            (paragraph) => [
+              Text(paragraph),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionTitle(BuildContext context, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 12),
+      child: Text(label, style: Theme.of(context).textTheme.titleMedium),
+    );
+  }
+
+  Widget _metadataOptionField({
+    required String label,
+    required String value,
+    required ValueChanged<String> onChanged,
+  }) {
+    return SizedBox(
+      width: 260,
+      child: TextFormField(
+        key: ValueKey('$label-$_formVersion'),
+        initialValue: value,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final section = _section;
+    if (section == null) {
+      return _optionsList(context);
+    }
+    final frame = _draft.frameSettings;
+    final frameMetadata = _draft.frameMetadata;
+    final collage = _draft.collageSettings;
+
+    if (section == _OptionsSection.about) {
+      return _informationPage(
+        context,
+        'このアプリについて',
+        [
+          'Photo Collage Studio は、写真のフレーム付き書き出しとコラージュ作成をローカル環境で行うアプリです。',
+          'フレーム画像作成、コラージュ作成、プロジェクト保存、初期値設定に対応しています。',
+          '画像処理は端末上で実行され、選択した画像をもとにJPEGを書き出します。',
+        ],
+      );
+    }
+    if (section == _OptionsSection.usage) {
+      return _informationPage(
+        context,
+        'アプリの使い方',
+        [
+          'Frame では画像を1枚選択し、フレーム幅・色・テキスト表示を調整して書き出します。',
+          'Collage では複数画像を選択し、列数・間隔・背景色・アスペクト比を調整して書き出します。',
+          'Options では新規作成時に使う初期値や、フレーム書き出し時の出力テキストを保存できます。',
+        ],
+      );
+    }
+    if (section == _OptionsSection.contact) {
+      return _informationPage(
+        context,
+        'お問い合わせ',
+        [
+          'お問い合わせは X アカウント @03St_akisame までDMをお願いします。',
+        ],
+      );
+    }
+
+    if (section == _OptionsSection.frame) {
+      return EditorScaffold(
+        busy: _busy,
+        status: _status,
+        actions: _settingsActions(),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text('フレーム書き出し機能', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            _sectionTitle(context, '出力テキスト'),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _metadataOptionField(
+                  label: 'Camera',
+                  value: frameMetadata.camera,
+                  onChanged: (value) {
+                    setState(() {
+                      _draft = _draft.copyWith(
+                        frameMetadata: frameMetadata.copyWith(camera: value),
+                      );
+                    });
+                  },
+                ),
+                _metadataOptionField(
+                  label: 'Lens',
+                  value: frameMetadata.lens,
+                  onChanged: (value) {
+                    setState(() {
+                      _draft = _draft.copyWith(
+                        frameMetadata: frameMetadata.copyWith(lens: value),
+                      );
+                    });
+                  },
+                ),
+                _metadataOptionField(
+                  label: 'Focal Length',
+                  value: frameMetadata.focalLength,
+                  onChanged: (value) {
+                    setState(() {
+                      _draft = _draft.copyWith(
+                        frameMetadata:
+                            frameMetadata.copyWith(focalLength: value),
+                      );
+                    });
+                  },
+                ),
+                _metadataOptionField(
+                  label: 'Aperture',
+                  value: frameMetadata.aperture,
+                  onChanged: (value) {
+                    setState(() {
+                      _draft = _draft.copyWith(
+                        frameMetadata: frameMetadata.copyWith(aperture: value),
+                      );
+                    });
+                  },
+                ),
+                _metadataOptionField(
+                  label: 'Shutter Speed',
+                  value: frameMetadata.shutterSpeed,
+                  onChanged: (value) {
+                    setState(() {
+                      _draft = _draft.copyWith(
+                        frameMetadata:
+                            frameMetadata.copyWith(shutterSpeed: value),
+                      );
+                    });
+                  },
+                ),
+                _metadataOptionField(
+                  label: 'ISO',
+                  value: frameMetadata.iso,
+                  onChanged: (value) {
+                    setState(() {
+                      _draft = _draft.copyWith(
+                        frameMetadata: frameMetadata.copyWith(iso: value),
+                      );
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            _sectionTitle(context, '挿入テキスト設定'),
+            ColorSwatchField(
+              label: 'Text Color',
+              value: frame.textStyle.textColor,
+              onChanged: (color) {
+                setState(() {
+                  _draft = _draft.copyWith(
+                    frameSettings: frame.copyWith(
+                      textStyle: frame.textStyle.copyWith(textColor: color),
+                    ),
+                  );
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            SegmentedField<TextHorizontalAlignment>(
+              label: 'Horizontal',
+              value: frame.textHorizontalAlignment,
+              options: const {
+                TextHorizontalAlignment.left: 'Left',
+                TextHorizontalAlignment.center: 'Center',
+                TextHorizontalAlignment.right: 'Right',
+              },
+              onChanged: (value) {
+                setState(() {
+                  _draft = _draft.copyWith(
+                    frameSettings:
+                        frame.copyWith(textHorizontalAlignment: value),
+                  );
+                });
+              },
+            ),
+            SliderField(
+              label: 'Camera/Lens Size',
+              value: frame.textStyle.fontSize,
+              min: 18,
+              max: 140,
+              onChanged: (value) {
+                setState(() {
+                  _draft = _draft.copyWith(
+                    frameSettings: frame.copyWith(
+                      textStyle: frame.textStyle.copyWith(fontSize: value),
+                    ),
+                  );
+                });
+              },
+            ),
+            SliderField(
+              label: 'Other Text Size',
+              value: frame.textStyle.detailFontSize,
+              min: 18,
+              max: 140,
+              onChanged: (value) {
+                setState(() {
+                  _draft = _draft.copyWith(
+                    frameSettings: frame.copyWith(
+                      textStyle:
+                          frame.textStyle.copyWith(detailFontSize: value),
+                    ),
+                  );
+                });
+              },
+            ),
+            const SizedBox(height: 24),
+            _sectionTitle(context, 'デフォルト値設定'),
+            ExportControls(
+              settings: _draft.frameExportSettings,
+              onChanged: (settings) {
+                setState(() {
+                  _draft = _draft.copyWith(frameExportSettings: settings);
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            ColorSwatchField(
+              label: 'Frame Color',
+              value: frame.backgroundColor,
+              onChanged: (color) {
+                setState(() {
+                  _draft = _draft.copyWith(
+                    frameSettings: frame.copyWith(
+                      backgroundColor: color,
+                      borderColor: color,
+                    ),
+                  );
+                });
+              },
+            ),
+            SliderField(
+              label: 'Top Frame',
+              value: frame.topFrameWidth,
+              min: 0,
+              max: 600,
+              onChanged: (value) {
+                setState(() {
+                  _draft = _draft.copyWith(
+                    frameSettings: frame.copyWith(topFrameWidth: value),
+                  );
+                });
+              },
+            ),
+            SliderField(
+              label: 'Side Frame',
+              value: (frame.leftFrameWidth + frame.rightFrameWidth) / 2,
+              min: 0,
+              max: 600,
+              onChanged: (value) {
+                setState(() {
+                  _draft = _draft.copyWith(
+                    frameSettings: frame.copyWith(
+                      leftFrameWidth: value,
+                      rightFrameWidth: value,
+                    ),
+                  );
+                });
+              },
+            ),
+            SliderField(
+              label: 'Bottom Frame',
+              value: frame.bottomFrameWidth,
+              min: 0,
+              max: 800,
+              onChanged: (value) {
+                setState(() {
+                  _draft = _draft.copyWith(
+                    frameSettings: frame.copyWith(
+                      bottomFrameWidth: value,
+                      bottomPanelHeight: value,
+                    ),
+                  );
+                });
+              },
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (section == _OptionsSection.collageDefaults) {
+      return EditorScaffold(
+        busy: _busy,
+        status: _status,
+        actions: _settingsActions(),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text('コラージュ機能 デフォルト値設定',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            ExportControls(
+              settings: _draft.collageExportSettings,
+              onChanged: (settings) {
+                setState(() {
+                  _draft = _draft.copyWith(collageExportSettings: settings);
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            SegmentedField<double>(
+              label: 'Aspect Ratio',
+              value: collage.aspectRatio,
+              options: {
+                1.0: '1:1',
+                1.25: '5:4',
+                0.8: '4:5',
+                1.5: '3:2',
+                0.6666666666666666: '2:3',
+                1.7777777777777777: '16:9',
+                0.5625: '9:16',
+              },
+              onChanged: (value) {
+                setState(() {
+                  _draft = _draft.copyWith(
+                    collageSettings: collage.copyWith(aspectRatio: value),
+                  );
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            ColorSwatchField(
+              label: 'Background',
+              value: collage.backgroundColor,
+              onChanged: (color) {
+                setState(() {
+                  _draft = _draft.copyWith(
+                    collageSettings: collage.copyWith(backgroundColor: color),
+                  );
+                });
+              },
+            ),
+            SliderField(
+              label: 'Columns',
+              value: collage.columns.toDouble(),
+              min: 1,
+              max: 6,
+              divisions: 5,
+              integer: true,
+              onChanged: (value) {
+                setState(() {
+                  _draft = _draft.copyWith(
+                    collageSettings: collage.copyWith(columns: value.round()),
+                  );
+                });
+              },
+            ),
+            SliderField(
+              label: 'Gutter',
+              value: collage.gutter,
+              min: 0,
+              max: 80,
+              onChanged: (value) {
+                setState(() {
+                  _draft = _draft.copyWith(
+                    collageSettings: collage.copyWith(gutter: value),
+                  );
+                });
+              },
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _optionsList(context);
+  }
+}
+
 class EditorScaffold extends StatelessWidget {
   const EditorScaffold({
     required this.child,
@@ -1338,6 +1984,19 @@ class _ExportControlsState extends State<ExportControls> {
     _longSide.dispose();
     _targetMb.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(ExportControls oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.settings.longSide != widget.settings.longSide) {
+      _longSide.text = widget.settings.longSide?.toString() ?? '';
+    }
+    if (oldWidget.settings.targetBytes != widget.settings.targetBytes) {
+      _targetMb.text = widget.settings.targetBytes == null
+          ? ''
+          : _formatMegabytes(widget.settings.targetBytes!);
+    }
   }
 
   void _commit() {
@@ -1796,86 +2455,82 @@ class SelectedFilesPreview extends StatelessWidget {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: visibleFiles
-          .asMap()
-          .entries
-          .map(
-            (entry) {
-              final index = entry.key;
-              final file = entry.value;
-              final canMove = onMove != null && files.length > 1;
-              final thumbnail = _SelectedFileThumbnail(
-                file: file,
-                index: index,
-                count: files.length,
-                onRemove: onRemove,
-                onMove: onMove,
-              );
+      children: visibleFiles.asMap().entries.map(
+        (entry) {
+          final index = entry.key;
+          final file = entry.value;
+          final canMove = onMove != null && files.length > 1;
+          final thumbnail = _SelectedFileThumbnail(
+            file: file,
+            index: index,
+            count: files.length,
+            onRemove: onRemove,
+            onMove: onMove,
+          );
 
-              return SizedBox(
-                width: 150,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AspectRatio(
-                      aspectRatio: 1,
-                      child: canMove
-                          ? DragTarget<int>(
-                              onWillAccept: (fromIndex) =>
-                                  fromIndex != null && fromIndex != index,
-                              onAccept: (fromIndex) =>
-                                  onMove!(fromIndex, index),
-                              builder: (context, candidateData, rejectedData) {
-                                final isHovering = candidateData.isNotEmpty;
-                                return Draggable<int>(
-                                  data: index,
-                                  feedback: Material(
-                                    color: Colors.transparent,
-                                    child: SizedBox(
-                                      width: 150,
-                                      height: 150,
-                                      child: Opacity(
-                                        opacity: 0.86,
-                                        child: thumbnail,
-                                      ),
-                                    ),
-                                  ),
-                                  childWhenDragging: Opacity(
-                                    opacity: 0.35,
+          return SizedBox(
+            width: 150,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AspectRatio(
+                  aspectRatio: 1,
+                  child: canMove
+                      ? DragTarget<int>(
+                          onWillAcceptWithDetails: (details) =>
+                              details.data != index,
+                          onAcceptWithDetails: (details) =>
+                              onMove!(details.data, index),
+                          builder: (context, candidateData, rejectedData) {
+                            final isHovering = candidateData.isNotEmpty;
+                            return Draggable<int>(
+                              data: index,
+                              feedback: Material(
+                                color: Colors.transparent,
+                                child: SizedBox(
+                                  width: 150,
+                                  height: 150,
+                                  child: Opacity(
+                                    opacity: 0.86,
                                     child: thumbnail,
                                   ),
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      border: isHovering
-                                          ? Border.all(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .primary,
-                                              width: 3,
-                                            )
-                                          : null,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: thumbnail,
-                                  ),
-                                );
-                              },
-                            )
-                          : thumbnail,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      p.basename(file.path),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
+                                ),
+                              ),
+                              childWhenDragging: Opacity(
+                                opacity: 0.35,
+                                child: thumbnail,
+                              ),
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  border: isHovering
+                                      ? Border.all(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                          width: 3,
+                                        )
+                                      : null,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: thumbnail,
+                              ),
+                            );
+                          },
+                        )
+                      : thumbnail,
                 ),
-              );
-            },
-          )
-          .toList(),
+                const SizedBox(height: 6),
+                Text(
+                  p.basename(file.path),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          );
+        },
+      ).toList(),
     );
   }
 }
@@ -1919,8 +2574,7 @@ class _SelectedFileThumbnail extends StatelessWidget {
               context: context,
               tooltip: 'Move previous',
               icon: Icons.chevron_left,
-              onPressed:
-                  index == 0 ? null : () => onMove!(index, index - 1),
+              onPressed: index == 0 ? null : () => onMove!(index, index - 1),
             ),
           ),
           Positioned(
@@ -1930,9 +2584,8 @@ class _SelectedFileThumbnail extends StatelessWidget {
               context: context,
               tooltip: 'Move next',
               icon: Icons.chevron_right,
-              onPressed: index >= count - 1
-                  ? null
-                  : () => onMove!(index, index + 1),
+              onPressed:
+                  index >= count - 1 ? null : () => onMove!(index, index + 1),
             ),
           ),
         ],
@@ -1964,7 +2617,7 @@ class _SelectedFileThumbnail extends StatelessWidget {
       child: Material(
         color: enabled
             ? colorScheme.secondaryContainer
-            : colorScheme.surfaceContainerHighest.withOpacity(0.72),
+            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.72),
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -1976,7 +2629,7 @@ class _SelectedFileThumbnail extends StatelessWidget {
               size: 18,
               color: enabled
                   ? colorScheme.onSecondaryContainer
-                  : colorScheme.onSurfaceVariant.withOpacity(0.48),
+                  : colorScheme.onSurfaceVariant.withValues(alpha: 0.48),
             ),
           ),
         ),

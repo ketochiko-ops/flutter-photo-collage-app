@@ -1,12 +1,53 @@
 import 'dart:ui';
 
 import 'package:flutter_photo_collage_app/models/collage_layout.dart';
+import 'package:flutter_photo_collage_app/models/app_preferences.dart';
 import 'package:flutter_photo_collage_app/models/export_settings.dart';
 import 'package:flutter_photo_collage_app/models/photo_metadata.dart';
 import 'package:flutter_photo_collage_app/models/project_document.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('AppPreferences', () {
+    test('round-trips default editor settings', () {
+      const preferences = AppPreferences(
+        frameExportSettings: ExportSettings(longSide: 3200),
+        frameMetadata: PhotoMetadata(
+          camera: 'FUJIFILM X-T5',
+          lens: 'XF 35mm F1.4',
+        ),
+        frameSettings: FrameSettings(bottomFrameWidth: 420),
+        collageExportSettings: ExportSettings(longSide: 2400),
+        collageSettings: CollageSettings(
+          columns: 3,
+          gutter: 14,
+          aspectRatio: 1.5,
+        ),
+      );
+
+      final restored = AppPreferences.fromJson(preferences.toJson());
+
+      expect(restored.frameExportSettings.longSide, 3200);
+      expect(restored.frameMetadata.camera, 'FUJIFILM X-T5');
+      expect(restored.frameMetadata.lens, 'XF 35mm F1.4');
+      expect(restored.frameSettings.bottomFrameWidth, 420);
+      expect(restored.collageExportSettings.longSide, 2400);
+      expect(restored.collageSettings.columns, 3);
+      expect(restored.collageSettings.gutter, 14);
+      expect(restored.collageSettings.aspectRatio, 1.5);
+    });
+
+    test('uses default export settings for partial json', () {
+      final restored = AppPreferences.fromJson(const {});
+
+      expect(restored.frameExportSettings.longSide, 4000);
+      expect(restored.collageExportSettings.longSide, 4000);
+      expect(restored.frameMetadata.isEmpty, isTrue);
+      expect(restored.frameSettings.backgroundColor, 0xFF000000);
+      expect(restored.collageSettings.backgroundColor, 0xFF000000);
+    });
+  });
+
   group('PhotoMetadata', () {
     // 撮影情報の表示順と、ISO表記が重複しないことを確認します。
     test('builds display parts and prefixes ISO once', () {

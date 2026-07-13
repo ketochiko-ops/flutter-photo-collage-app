@@ -168,6 +168,7 @@ class FrameSettings {
     final legacyBorderWidth = (json['borderWidth'] as num?)?.toDouble();
     final legacyBottomPanelHeight =
         (json['bottomPanelHeight'] as num?)?.toDouble() ?? 350;
+    final textStyleJson = json['textStyle'];
 
     return FrameSettings(
       borderColor: json['borderColor'] as int? ?? 0xFF000000,
@@ -187,7 +188,9 @@ class FrameSettings {
       bottomPanelHeight: legacyBottomPanelHeight,
       imagePadding: (json['imagePadding'] as num?)?.toDouble() ?? 24,
       textStyle: TextStyleSettings.fromJson(
-        json['textStyle'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+        textStyleJson is Map
+            ? Map<String, dynamic>.from(textStyleJson)
+            : const <String, dynamic>{},
       ),
       textHorizontalAlignment: _enumValue(
         TextHorizontalAlignment.values,
