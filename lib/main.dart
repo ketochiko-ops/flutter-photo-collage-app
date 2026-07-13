@@ -810,6 +810,27 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
     }
   }
 
+  Future<void> _swapImageOrder(int fromIndex, int toIndex) async {
+    if (fromIndex == toIndex ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= _imageFiles.length ||
+        toIndex >= _imageFiles.length) {
+      return;
+    }
+    _previewDebounce?.cancel();
+    _previewVersion++;
+    setState(() {
+      final reordered = [..._imageFiles];
+      final source = reordered[fromIndex];
+      reordered[fromIndex] = reordered[toIndex];
+      reordered[toIndex] = source;
+      _imageFiles = reordered;
+      _status = 'Image order updated.';
+    });
+    await _refreshPreview();
+  }
+
   Future<void> _exportJpeg() async {
     if (_imageFiles.isEmpty) {
       setState(() => _status = '先に画像を選択してください。');
@@ -986,6 +1007,9 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
             files: _imageFiles,
             onRemove: (index) {
               unawaited(_removeImageAt(index));
+            },
+            onMove: (fromIndex, toIndex) {
+              unawaited(_swapImageOrder(fromIndex, toIndex));
             },
           ),
           const SizedBox(height: 16),
@@ -1673,11 +1697,13 @@ class SelectedFilesPreview extends StatelessWidget {
   const SelectedFilesPreview({
     required this.files,
     this.onRemove,
+    this.onMove,
     super.key,
   });
 
   final List<File> files;
   final ValueChanged<int>? onRemove;
+  final void Function(int fromIndex, int toIndex)? onMove;
 
   @override
   Widget build(BuildContext context) {
@@ -1695,62 +1721,172 @@ class SelectedFilesPreview extends StatelessWidget {
           .asMap()
           .entries
           .map(
-            (entry) => SizedBox(
-              width: 150,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AspectRatio(
-                    aspectRatio: 1,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: Image.file(
-                            entry.value,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const ColoredBox(
-                              color: Color(0xFFE8ECEF),
-                              child: Icon(Icons.broken_image_outlined),
-                            ),
-                          ),
-                        ),
-                        if (onRemove != null)
-                          Positioned(
-                            top: 6,
-                            right: 6,
-                            child: Tooltip(
-                              message: 'Remove image',
-                              child: IconButton.filledTonal(
-                                onPressed: () => onRemove!(entry.key),
-                                icon: const Icon(Icons.close),
-                                iconSize: 18,
-                                style: IconButton.styleFrom(
-                                  fixedSize: const Size.square(32),
-                                  minimumSize: const Size.square(32),
-                                  padding: EdgeInsets.zero,
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
+            (entry) {
+              final index = entry.key;
+              final file = entry.value;
+              final canMove = onMove != null && files.length > 1;
+              final thumbnail = _SelectedFileThumbnail(
+                file: file,
+                index: index,
+                count: files.length,
+                onRemove: onRemove,
+                onMove: onMove,
+              );
+
+              return SizedBox(
+                width: 150,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AspectRatio(
+                      aspectRatio: 1,
+                      child: canMove
+                          ? DragTarget<int>(
+                              onWillAccept: (fromIndex) =>
+                                  fromIndex != null && fromIndex != index,
+                              onAccept: (fromIndex) =>
+                                  onMove!(fromIndex, index),
+                              builder: (context, candidateData, rejectedData) {
+                                final isHovering = candidateData.isNotEmpty;
+                                return Draggable<int>(
+                                  data: index,
+                                  feedback: Material(
+                                    color: Colors.transparent,
+                                    child: SizedBox(
+                                      width: 150,
+                                      height: 150,
+                                      child: Opacity(
+                                        opacity: 0.86,
+                                        child: thumbnail,
+                                      ),
+                                    ),
+                                  ),
+                                  childWhenDragging: Opacity(
+                                    opacity: 0.35,
+                                    child: thumbnail,
+                                  ),
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      border: isHovering
+                                          ? Border.all(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary,
+                                              width: 3,
+                                            )
+                                          : null,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: thumbnail,
+                                  ),
+                                );
+                              },
+                            )
+                          : thumbnail,
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    p.basename(entry.value.path),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
+                    const SizedBox(height: 6),
+                    Text(
+                      p.basename(file.path),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              );
+            },
           )
           .toList(),
+    );
+  }
+}
+
+class _SelectedFileThumbnail extends StatelessWidget {
+  const _SelectedFileThumbnail({
+    required this.file,
+    required this.index,
+    required this.count,
+    required this.onRemove,
+    required this.onMove,
+  });
+
+  final File file;
+  final int index;
+  final int count;
+  final ValueChanged<int>? onRemove;
+  final void Function(int fromIndex, int toIndex)? onMove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.file(
+            file,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const ColoredBox(
+              color: Color(0xFFE8ECEF),
+              child: Icon(Icons.broken_image_outlined),
+            ),
+          ),
+        ),
+        if (onMove != null && count > 1) ...[
+          Positioned(
+            left: 6,
+            top: 6,
+            child: _thumbnailActionButton(
+              tooltip: 'Move previous',
+              icon: Icons.chevron_left,
+              onPressed:
+                  index == 0 ? null : () => onMove!(index, index - 1),
+            ),
+          ),
+          Positioned(
+            left: 42,
+            top: 6,
+            child: _thumbnailActionButton(
+              tooltip: 'Move next',
+              icon: Icons.chevron_right,
+              onPressed: index >= count - 1
+                  ? null
+                  : () => onMove!(index, index + 1),
+            ),
+          ),
+        ],
+        if (onRemove != null)
+          Positioned(
+            top: 6,
+            right: 6,
+            child: _thumbnailActionButton(
+              tooltip: 'Remove image',
+              icon: Icons.close,
+              onPressed: () => onRemove!(index),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _thumbnailActionButton({
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: IconButton.filledTonal(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        iconSize: 18,
+        style: IconButton.styleFrom(
+          fixedSize: const Size.square(32),
+          minimumSize: const Size.square(32),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
     );
   }
 }
