@@ -998,7 +998,7 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
             fileName: _imageFiles.isEmpty
                 ? null
                 : '${_imageFiles.length} selected images',
-            aspectRatio: 1,
+            aspectRatio: _collage.aspectRatio,
             loading: _previewing,
             error: _previewError,
           ),
@@ -1017,6 +1017,23 @@ class _CollageEditorPageState extends State<CollageEditorPage> {
             settings: _export,
             onChanged: (settings) {
               setState(() => _export = settings);
+              _schedulePreviewRefresh();
+            },
+          ),
+          SegmentedField<double>(
+            label: 'Aspect Ratio',
+            value: _collage.aspectRatio,
+            options: {
+              1.0: '1:1',
+              0.8: '4:5',
+              1.5: '3:2',
+              1.7777777777777777: '16:9',
+              0.5625: '9:16',
+            },
+            onChanged: (value) {
+              setState(() {
+                _collage = _collage.copyWith(aspectRatio: value);
+              });
               _schedulePreviewRefresh();
             },
           ),
@@ -1837,6 +1854,7 @@ class _SelectedFileThumbnail extends StatelessWidget {
             left: 6,
             top: 6,
             child: _thumbnailActionButton(
+              context: context,
               tooltip: 'Move previous',
               icon: Icons.chevron_left,
               onPressed:
@@ -1847,6 +1865,7 @@ class _SelectedFileThumbnail extends StatelessWidget {
             left: 42,
             top: 6,
             child: _thumbnailActionButton(
+              context: context,
               tooltip: 'Move next',
               icon: Icons.chevron_right,
               onPressed: index >= count - 1
@@ -1860,6 +1879,7 @@ class _SelectedFileThumbnail extends StatelessWidget {
             top: 6,
             right: 6,
             child: _thumbnailActionButton(
+              context: context,
               tooltip: 'Remove image',
               icon: Icons.close,
               onPressed: () => onRemove!(index),
@@ -1870,21 +1890,33 @@ class _SelectedFileThumbnail extends StatelessWidget {
   }
 
   Widget _thumbnailActionButton({
+    required BuildContext context,
     required String tooltip,
     required IconData icon,
     required VoidCallback? onPressed,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final enabled = onPressed != null;
     return Tooltip(
       message: tooltip,
-      child: IconButton.filledTonal(
-        onPressed: onPressed,
-        icon: Icon(icon),
-        iconSize: 18,
-        style: IconButton.styleFrom(
-          fixedSize: const Size.square(32),
-          minimumSize: const Size.square(32),
-          padding: EdgeInsets.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      child: Material(
+        color: enabled
+            ? colorScheme.secondaryContainer
+            : colorScheme.surfaceContainerHighest.withOpacity(0.72),
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: SizedBox.square(
+            dimension: 32,
+            child: Icon(
+              icon,
+              size: 18,
+              color: enabled
+                  ? colorScheme.onSecondaryContainer
+                  : colorScheme.onSurfaceVariant.withOpacity(0.48),
+            ),
+          ),
         ),
       ),
     );

@@ -64,7 +64,11 @@ class LocalImageComposer {
     for (final imageFile in imageFiles) {
       images.add(await _decodeUiImage(await imageFile.readAsBytes()));
     }
-    final size = _resolveCollageCanvasSize(images, exportSettings);
+    final size = _resolveCollageCanvasSize(
+      images,
+      exportSettings,
+      collageSettings,
+    );
     final picture = ui.PictureRecorder();
     final canvas = Canvas(picture);
 
@@ -128,10 +132,15 @@ class LocalImageComposer {
   Size _resolveCollageCanvasSize(
     List<ui.Image> images,
     ExportSettings settings,
+    CollageSettings collageSettings,
   ) {
+    final aspectRatio = collageSettings.aspectRatio.isFinite &&
+            collageSettings.aspectRatio > 0
+        ? collageSettings.aspectRatio
+        : 1.0;
     final requestedLongSide = settings.longSide;
     if (requestedLongSide != null && requestedLongSide > 0) {
-      return Size.square(requestedLongSide.toDouble());
+      return _sizeFromLongSide(requestedLongSide.toDouble(), aspectRatio);
     }
     if (images.isEmpty) {
       return const Size.square(1);
@@ -139,7 +148,14 @@ class LocalImageComposer {
     final longestSide = images
         .map((image) => math.max(image.width, image.height))
         .reduce(math.max);
-    return Size.square(longestSide.toDouble());
+    return _sizeFromLongSide(longestSide.toDouble(), aspectRatio);
+  }
+
+  Size _sizeFromLongSide(double longSide, double aspectRatio) {
+    if (aspectRatio >= 1) {
+      return Size(longSide, math.max(1.0, longSide / aspectRatio));
+    }
+    return Size(math.max(1.0, longSide * aspectRatio), longSide);
   }
 
   Future<void> writeJpeg({

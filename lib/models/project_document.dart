@@ -224,21 +224,25 @@ class CollageSettings {
   const CollageSettings({
     this.columns = 2,
     this.gutter = 24,
+    this.aspectRatio = 1,
     this.backgroundColor = 0xFFFFFFFF,
   });
 
   final int columns;
   final double gutter;
+  final double aspectRatio;
   final int backgroundColor;
 
   CollageSettings copyWith({
     int? columns,
     double? gutter,
+    double? aspectRatio,
     int? backgroundColor,
   }) {
     return CollageSettings(
       columns: columns ?? this.columns,
       gutter: gutter ?? this.gutter,
+      aspectRatio: aspectRatio ?? this.aspectRatio,
       backgroundColor: backgroundColor ?? this.backgroundColor,
     );
   }
@@ -246,6 +250,7 @@ class CollageSettings {
   Map<String, dynamic> toJson() => {
         'columns': columns,
         'gutter': gutter,
+        'aspectRatio': aspectRatio,
         'backgroundColor': backgroundColor,
       };
 
@@ -253,6 +258,7 @@ class CollageSettings {
     return CollageSettings(
       columns: json['columns'] as int? ?? 2,
       gutter: (json['gutter'] as num?)?.toDouble() ?? 24,
+      aspectRatio: (json['aspectRatio'] as num?)?.toDouble() ?? 1,
       backgroundColor: json['backgroundColor'] as int? ?? 0xFFFFFFFF,
     );
   }

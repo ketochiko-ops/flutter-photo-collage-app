@@ -107,6 +107,20 @@ void main() {
   });
 
   group('ProjectDocument', () {
+    test('round-trips collage aspect ratio settings', () {
+      const settings = CollageSettings(
+        columns: 3,
+        gutter: 12,
+        aspectRatio: 1.5,
+      );
+
+      final restored = CollageSettings.fromJson(settings.toJson());
+
+      expect(restored.columns, 3);
+      expect(restored.gutter, 12);
+      expect(restored.aspectRatio, 1.5);
+    });
+
     test('uses requested default frame widths', () {
       const settings = FrameSettings();
 

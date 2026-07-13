@@ -8,6 +8,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as image_lib;
 
 void main() {
+  test('collage output uses requested aspect ratio', () async {
+    final directory = await Directory.systemTemp.createTemp('composer_test_');
+    addTearDown(() => directory.delete(recursive: true));
+
+    final sourceFile = File('${directory.path}/source.png');
+    final sourceImage = image_lib.Image(width: 400, height: 300);
+    image_lib.fill(sourceImage, color: image_lib.ColorRgb8(30, 80, 120));
+    await sourceFile.writeAsBytes(image_lib.encodePng(sourceImage));
+
+    final composer = LocalImageComposer();
+    final jpeg = await composer.composeCollageJpeg(
+      imageFiles: [sourceFile],
+      exportSettings: const ExportSettings(longSide: 900),
+      collageSettings: const CollageSettings(aspectRatio: 1.5),
+    );
+
+    final output = image_lib.decodeJpg(jpeg);
+
+    expect(output, isNotNull);
+    expect(output!.width, 900);
+    expect(output.height, 600);
+  });
+
   test('side frame width affects framed output geometry', () async {
     final directory = await Directory.systemTemp.createTemp('composer_test_');
     addTearDown(() => directory.delete(recursive: true));
